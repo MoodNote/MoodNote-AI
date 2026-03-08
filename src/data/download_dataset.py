@@ -61,13 +61,22 @@ def download_uit_vsmec(output_dir="data/raw"):
             6: "Other"
         }
 
-        label_col = 'label' if 'label' in splits['train'].columns else 'labels'
-        emotion_counts = splits['train'][label_col].value_counts().sort_index()
-
-        for label, count in emotion_counts.items():
-            emotion_name = emotion_labels.get(label, f"Unknown_{label}")
-            percentage = (count / len(splits['train'])) * 100
-            print(f"{emotion_name}: {count} ({percentage:.2f}%)")
+        train_df = splits['train']
+        if 'Emotion' in train_df.columns:
+            emotion_counts = train_df['Emotion'].value_counts().sort_index()
+            for emotion_name, count in emotion_counts.items():
+                percentage = (count / len(train_df)) * 100
+                print(f"{emotion_name}: {count} ({percentage:.2f}%)")
+        else:
+            label_col = next((c for c in ('label', 'labels') if c in train_df.columns), None)
+            if label_col is None:
+                print(f"Unknown column layout: {list(train_df.columns)}")
+            else:
+                emotion_counts = train_df[label_col].value_counts().sort_index()
+                for label, count in emotion_counts.items():
+                    emotion_name = emotion_labels.get(label, f"Unknown_{label}")
+                    percentage = (count / len(train_df)) * 100
+                    print(f"{emotion_name}: {count} ({percentage:.2f}%)")
 
         print("\nDataset download complete!")
         return splits
