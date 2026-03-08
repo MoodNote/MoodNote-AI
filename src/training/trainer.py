@@ -179,7 +179,7 @@ def train_model(
         output_dir=output_dir,
         num_epochs=training_config['training']['num_epochs'],
         batch_size=training_config['training']['batch_size'],
-        learning_rate=training_config['training']['learning_rate'],
+        learning_rate=float(training_config['training']['learning_rate']),
         warmup_steps=training_config['training']['warmup_steps'],
         weight_decay=training_config['training']['weight_decay'],
         fp16=training_config['training'].get('fp16', True),
