@@ -93,12 +93,13 @@ class EmotionPredictor:
 
         # Inference
         with torch.no_grad():
-            logits = self.model(
+            outputs = self.model(
                 input_ids=inputs['input_ids'],
                 attention_mask=inputs['attention_mask']
             )
 
         # Get probabilities
+        logits = outputs.logits if hasattr(outputs, 'logits') else outputs
         probs = torch.softmax(logits, dim=-1)
         probs = probs.cpu().numpy()[0]
 
