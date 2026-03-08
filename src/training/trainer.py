@@ -65,7 +65,7 @@ def create_training_arguments(
         learning_rate=learning_rate,
         warmup_steps=warmup_steps,
         weight_decay=weight_decay,
-        fp16=fp16,
+        fp16=fp16 and torch.cuda.is_available(),
         seed=seed,
         logging_dir=str(Path(output_dir) / "logs"),
         logging_steps=log_steps,
