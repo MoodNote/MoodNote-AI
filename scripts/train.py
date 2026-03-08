@@ -114,7 +114,8 @@ def main():
     model = PhoBERTEmotionClassifier(
         model_name=model_config['model']['name'],
         num_labels=model_config['model']['num_labels'],
-        dropout=model_config['model']['dropout']
+        dropout=model_config['model']['dropout'],
+        label_smoothing=model_config['model'].get('label_smoothing', 0.1)
     )
 
     model.to(device)

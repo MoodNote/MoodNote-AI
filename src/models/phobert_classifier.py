@@ -27,7 +27,8 @@ class PhoBERTEmotionClassifier(nn.Module):
         num_labels=7,
         dropout=0.1,
         freeze_bert=False,
-        class_weights=None
+        class_weights=None,
+        label_smoothing=0.1
     ):
         """
         Initialize PhoBERT classifier
@@ -37,11 +38,13 @@ class PhoBERTEmotionClassifier(nn.Module):
             num_labels: Number of emotion classes
             dropout: Dropout rate
             freeze_bert: Whether to freeze BERT parameters
+            label_smoothing: Label smoothing factor for CrossEntropyLoss
         """
         super(PhoBERTEmotionClassifier, self).__init__()
 
         self.model_name = model_name
         self.num_labels = num_labels
+        self.label_smoothing = label_smoothing
 
         # Load PhoBERT model
         self.bert = AutoModel.from_pretrained(model_name)
@@ -83,7 +86,7 @@ class PhoBERTEmotionClassifier(nn.Module):
         loss = None
         if labels is not None:
             weight = self.class_weights.to(logits.device) if self.class_weights is not None else None
-            loss = nn.CrossEntropyLoss(weight=weight)(logits, labels)
+            loss = nn.CrossEntropyLoss(weight=weight, label_smoothing=self.label_smoothing)(logits, labels)
 
         return SequenceClassifierOutput(loss=loss, logits=logits)
 

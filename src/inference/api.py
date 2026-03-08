@@ -58,6 +58,9 @@ class PredictionResponse(BaseModel):
     emotion: str
     confidence: float
     probabilities: Dict[str, float]
+    sentiment_score: float
+    intensity: float
+    keywords: List[str]
 
 
 class BatchPredictionResponse(BaseModel):
@@ -108,7 +111,8 @@ async def startup_event():
             model_path=model_path,
             device=device,
             segmenter=api_config['preprocessing']['segmenter'],
-            emotion_labels=model_config['emotion_labels']
+            emotion_labels=model_config['emotion_labels'],
+            sentiment_scores=model_config.get('sentiment_scores')
         )
 
         logger.info("API server started successfully!")

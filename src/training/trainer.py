@@ -79,7 +79,8 @@ def create_training_arguments(
         greater_is_better=True,
         report_to=report_to,
         dataloader_num_workers=0,
-        remove_unused_columns=False
+        remove_unused_columns=False,
+        lr_scheduler_type="cosine"
     )
 
     return args

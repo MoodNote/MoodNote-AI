@@ -1,8 +1,10 @@
 model:
   name: "vinai/phobert-base"
+  # name: "vinai/phobert-large"  # uncomment nếu GPU có đủ RAM (>= 16GB)
   num_labels: 7
   max_seq_length: 128
   dropout: 0.1
+  label_smoothing: 0.1
 
 emotion_labels:
   0: "Enjoyment"
@@ -12,6 +14,15 @@ emotion_labels:
   4: "Disgust"
   5: "Surprise"
   6: "Other"
+
+sentiment_scores:
+  Enjoyment: 1.0
+  Surprise: 0.3
+  Other: 0.0
+  Fear: -0.5
+  Disgust: -0.7
+  Sadness: -0.8
+  Anger: -0.9
 
 preprocessing:
   segmenter: "pyvi"  # Fast alternative to VnCoreNLP

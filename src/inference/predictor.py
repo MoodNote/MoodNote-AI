@@ -6,6 +6,7 @@ import numpy as np
 from pathlib import Path
 from ..models.model_utils import load_model
 from ..data.preprocess import VietnamesePreprocessor
+from ..utils.keyword_extractor import VietnameseKeywordExtractor
 
 
 class EmotionPredictor:
@@ -16,7 +17,8 @@ class EmotionPredictor:
         model_path,
         device='cpu',
         segmenter='pyvi',
-        emotion_labels=None
+        emotion_labels=None,
+        sentiment_scores=None
     ):
         """
         Initialize predictor
@@ -26,6 +28,7 @@ class EmotionPredictor:
             device: Device to run inference on
             segmenter: Vietnamese word segmenter to use
             emotion_labels: Dictionary mapping label indices to names
+            sentiment_scores: Dictionary mapping emotion names to sentiment values (-1 to +1)
         """
         self.device = device
         self.model_path = model_path
@@ -44,12 +47,29 @@ class EmotionPredictor:
         else:
             self.emotion_labels = emotion_labels
 
+        # Default sentiment scores per emotion (FR-11)
+        if sentiment_scores is None:
+            self.sentiment_scores = {
+                "Enjoyment": 1.0,
+                "Surprise": 0.3,
+                "Other": 0.0,
+                "Fear": -0.5,
+                "Disgust": -0.7,
+                "Sadness": -0.8,
+                "Anger": -0.9
+            }
+        else:
+            self.sentiment_scores = sentiment_scores
+
         # Load model and tokenizer
         print(f"Loading model from {model_path}...")
         self.model, self.tokenizer = load_model(model_path, device=device)
 
         # Initialize preprocessor
         self.preprocessor = VietnamesePreprocessor(segmenter=segmenter)
+
+        # Initialize keyword extractor (FR-13)
+        self.keyword_extractor = VietnameseKeywordExtractor(max_keywords=10)
 
         print("Predictor initialized successfully!")
 
@@ -108,11 +128,30 @@ class EmotionPredictor:
         pred_emotion = self.emotion_labels[pred_idx]
         confidence = float(probs[pred_idx])
 
+        # FR-11: Sentiment score (-1.0 to +1.0) — weighted sum of emotion sentiments
+        sentiment_score = float(sum(
+            self.sentiment_scores.get(self.emotion_labels[i], 0.0) * float(probs[i])
+            for i in range(len(probs))
+        ))
+        sentiment_score = round(sentiment_score, 4)
+
+        # FR-12: Intensity (0-100) — based on prediction entropy
+        # Low entropy = model is confident = high intensity
+        entropy = -np.sum(probs * np.log(probs + 1e-9))
+        max_entropy = np.log(len(probs))  # log(7) ≈ 1.946
+        intensity = round(float((1.0 - entropy / max_entropy) * 100), 2)
+
+        # FR-13: Keyword extraction (3-10 keywords)
+        keywords = self.keyword_extractor.extract(text, n=5)
+
         # Create result
         result = {
             'text': text,
             'emotion': pred_emotion,
-            'confidence': confidence
+            'confidence': confidence,
+            'sentiment_score': sentiment_score,
+            'intensity': intensity,
+            'keywords': keywords
         }
 
         if return_probabilities:

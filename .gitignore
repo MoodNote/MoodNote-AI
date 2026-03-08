@@ -51,3 +51,6 @@ htmlcov/
 # Temporary files
 *.tmp
 nul
+
+#AI
+.claude

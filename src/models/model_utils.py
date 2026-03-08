@@ -26,7 +26,9 @@ def save_model(model, tokenizer, save_dir, config=None):
         'model_state_dict': model.state_dict(),
         'model_name': model.model_name,
         'num_labels': model.num_labels,
-        'hidden_size': model.hidden_size
+        'hidden_size': model.hidden_size,
+        'dropout': model.dropout.p,
+        'label_smoothing': model.label_smoothing
     }, model_path)
 
     # Save tokenizer
@@ -62,7 +64,9 @@ def load_model(load_dir, device='cpu'):
     # Create model
     model = PhoBERTEmotionClassifier(
         model_name=checkpoint['model_name'],
-        num_labels=checkpoint['num_labels']
+        num_labels=checkpoint['num_labels'],
+        dropout=checkpoint.get('dropout', 0.1),
+        label_smoothing=checkpoint.get('label_smoothing', 0.0)
     )
 
     # Load state dict
