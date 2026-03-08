@@ -59,7 +59,7 @@ class PhoBERTEmotionClassifier(nn.Module):
             for param in self.bert.parameters():
                 param.requires_grad = False
 
-    def forward(self, input_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, labels=None):
         """
         Forward pass
 
