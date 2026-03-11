@@ -1,12 +1,16 @@
 training:
-    learning_rate: 0.00002          # LR thấp hơn 1 chút cho large model
-    batch_size: 8                   # giảm batch_size để fit VRAM T4 với phobert-large
+    learning_rate: 3e-5              # tăng nhẹ (LLRD sẽ giảm cho bottom layers tự động)
+    batch_size: 8                    # giữ nguyên cho T4 compatibility
     gradient_accumulation_steps: 4  # effective batch = 8 * 4 = 32
-    num_epochs: 10
-    warmup_steps: 500
-    weight_decay: 0.1
-    fp16: true # Mixed precision training
+    num_epochs: 15                   # tăng, early stopping sẽ dừng đúng lúc
+    warmup_ratio: 0.06               # ~100 steps warmup thay vì 500 cứng (6% of total steps)
+    weight_decay: 0.01               # giảm từ 0.1 → 0.01 (chuẩn cho transformer)
+    fp16: true
     seed: 42
+    early_stopping_patience: 5      # configurable (trước bị hardcode là 3)
+    use_llrd: true                   # Layer-wise LR Decay
+    llrd_factor: 0.9                 # mỗi layer giảm 10% so với layer trên
+    use_class_weights: true          # tính class weights từ training data
 
 optimizer:
     type: "AdamW"
@@ -24,5 +28,5 @@ logging:
 
 wandb:
     project: "moodnote-ai"
-    name: "phobert-base-vsmec"
+    name: "phobert-large-llrd-classweights"
     enabled: true

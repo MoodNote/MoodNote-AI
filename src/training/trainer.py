@@ -3,10 +3,12 @@ Training utilities using Hugging Face Trainer API
 """
 import torch
 import numpy as np
+from torch.optim import AdamW
 from transformers import (
     Trainer,
     TrainingArguments,
-    EarlyStoppingCallback
+    EarlyStoppingCallback,
+    get_cosine_schedule_with_warmup
 )
 from pathlib import Path
 import wandb
@@ -21,7 +23,8 @@ def create_training_arguments(
     num_epochs=5,
     batch_size=16,
     learning_rate=3e-5,
-    warmup_steps=500,
+    warmup_steps=100,
+    warmup_ratio=0.0,
     weight_decay=0.01,
     fp16=True,
     seed=42,
@@ -40,7 +43,8 @@ def create_training_arguments(
         num_epochs: Number of training epochs
         batch_size: Training batch size
         learning_rate: Learning rate
-        warmup_steps: Number of warmup steps
+        warmup_steps: Number of warmup steps (ignored if warmup_ratio > 0)
+        warmup_ratio: Fraction of training steps for warmup (overrides warmup_steps if > 0)
         weight_decay: Weight decay for optimizer
         fp16: Whether to use mixed precision training
         seed: Random seed
@@ -58,6 +62,9 @@ def create_training_arguments(
     if wandb_config and wandb_config.get('enabled', True):
         report_to.append('wandb')
 
+    # warmup_ratio takes priority over warmup_steps
+    warmup_kwargs = {"warmup_ratio": warmup_ratio} if warmup_ratio > 0 else {"warmup_steps": warmup_steps}
+
     args = TrainingArguments(
         output_dir=output_dir,
         num_train_epochs=num_epochs,
@@ -65,7 +72,6 @@ def create_training_arguments(
         per_device_eval_batch_size=batch_size,
         gradient_accumulation_steps=gradient_accumulation_steps,
         learning_rate=learning_rate,
-        warmup_steps=warmup_steps,
         weight_decay=weight_decay,
         fp16=fp16 and torch.cuda.is_available(),
         seed=seed,
@@ -82,7 +88,8 @@ def create_training_arguments(
         report_to=report_to,
         dataloader_num_workers=0,
         remove_unused_columns=False,
-        lr_scheduler_type="cosine"
+        lr_scheduler_type="cosine",
+        **warmup_kwargs
     )
 
     return args
@@ -110,7 +117,48 @@ def init_wandb(config, project_name, run_name=None):
     logger.info(f"W&B initialized: {project_name}/{run_name}")
 
 
-EmotionTrainer = Trainer
+class EmotionTrainer(Trainer):
+    """
+    Custom Trainer with Layer-wise LR Decay (LLRD) support.
+    When llrd_factor is set and model has get_parameter_groups(),
+    each BERT layer gets a progressively smaller learning rate.
+    """
+
+    def __init__(self, *args, llrd_factor=None, **kwargs):
+        self.llrd_factor = llrd_factor
+        super().__init__(*args, **kwargs)
+
+    def create_optimizer(self):
+        if self.llrd_factor and hasattr(self.model, 'get_parameter_groups'):
+            param_groups = self.model.get_parameter_groups(
+                base_lr=self.args.learning_rate,
+                llrd_factor=self.llrd_factor
+            )
+            # Add weight_decay to all groups (skip bias and LayerNorm)
+            decay_params = []
+            no_decay_params = []
+            no_decay_names = ["bias", "LayerNorm.weight", "layer_norm.weight"]
+            for group in param_groups:
+                wd_group = {"params": [], "lr": group["lr"], "weight_decay": self.args.weight_decay}
+                no_wd_group = {"params": [], "lr": group["lr"], "weight_decay": 0.0}
+                for name, param in zip(
+                    [n for n, _ in self.model.named_parameters()],
+                    group["params"]
+                ):
+                    if any(nd in name for nd in no_decay_names):
+                        no_wd_group["params"].append(param)
+                    else:
+                        wd_group["params"].append(param)
+                if wd_group["params"]:
+                    decay_params.append(wd_group)
+                if no_wd_group["params"]:
+                    no_decay_params.append(no_wd_group)
+
+            optimizer_grouped_params = decay_params + no_decay_params
+            self.optimizer = AdamW(optimizer_grouped_params, eps=1e-8)
+            logger.info(f"LLRD optimizer created with {len(param_groups)} layer groups (factor={self.llrd_factor})")
+            return self.optimizer
+        return super().create_optimizer()
 
 
 def train_model(
@@ -149,22 +197,36 @@ def train_model(
         )
 
     # Create training arguments
+    t_cfg = training_config['training']
+    warmup_ratio = t_cfg.get('warmup_ratio', 0.0)
+    warmup_steps = t_cfg.get('warmup_steps', 100)
+
     training_args = create_training_arguments(
         output_dir=output_dir,
-        num_epochs=training_config['training']['num_epochs'],
-        batch_size=training_config['training']['batch_size'],
-        gradient_accumulation_steps=training_config['training'].get('gradient_accumulation_steps', 1),
-        learning_rate=float(training_config['training']['learning_rate']),
-        warmup_steps=training_config['training']['warmup_steps'],
-        weight_decay=training_config['training']['weight_decay'],
-        fp16=training_config['training'].get('fp16', True),
-        seed=training_config['training'].get('seed', 42),
+        num_epochs=t_cfg['num_epochs'],
+        batch_size=t_cfg['batch_size'],
+        gradient_accumulation_steps=t_cfg.get('gradient_accumulation_steps', 1),
+        learning_rate=float(t_cfg['learning_rate']),
+        warmup_steps=warmup_steps,
+        warmup_ratio=warmup_ratio,
+        weight_decay=t_cfg['weight_decay'],
+        fp16=t_cfg.get('fp16', True),
+        seed=t_cfg.get('seed', 42),
         log_steps=training_config['logging']['log_steps'],
         eval_steps=training_config['logging']['eval_steps'],
         save_steps=training_config['logging']['save_steps'],
         save_total_limit=training_config['logging']['save_total_limit'],
         wandb_config=training_config.get('wandb')
     )
+
+    # LLRD config
+    llrd_factor = None
+    if t_cfg.get('use_llrd', False):
+        llrd_factor = t_cfg.get('llrd_factor', 0.9)
+        logger.info(f"Layer-wise LR Decay enabled (factor={llrd_factor})")
+
+    # Early stopping patience from config
+    patience = t_cfg.get('early_stopping_patience', 5)
 
     # Create trainer
     trainer = EmotionTrainer(
@@ -173,7 +235,8 @@ def train_model(
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         compute_metrics=compute_metrics_for_trainer,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=patience)],
+        llrd_factor=llrd_factor
     )
 
     # Train

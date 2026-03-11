@@ -36,6 +36,10 @@ class FocalLoss(nn.Module):
             log_probs = F.log_softmax(logits, dim=-1)
             # CE with soft targets
             ce_loss = -(soft_targets * log_probs).sum(dim=-1)
+            # Apply class weights per sample (fix: was silently ignored before)
+            if self.weight is not None:
+                sample_weights = self.weight.to(logits.device)[targets]
+                ce_loss = ce_loss * sample_weights
             # Focal weight based on true class probability
             pt = torch.exp(log_probs).gather(1, targets.unsqueeze(1)).squeeze(1)
         else:
@@ -149,13 +153,54 @@ class PhoBERTEmotionClassifier(nn.Module):
         """Get number of trainable parameters"""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
+    def get_parameter_groups(self, base_lr, llrd_factor=0.9):
+        """
+        Get optimizer parameter groups with Layer-wise LR Decay (LLRD).
 
-def create_model(config):
+        Lower BERT layers get smaller LR to preserve pretrained features.
+        Classifier head gets full base_lr.
+
+        Args:
+            base_lr: Base learning rate (for classifier head)
+            llrd_factor: Decay factor per layer (0.9 → each layer gets 90% of layer above)
+
+        Returns:
+            list: Parameter groups with different learning rates
+        """
+        # Classifier head: full base_lr
+        param_groups = [
+            {"params": self.classifier.parameters(), "lr": base_lr, "name": "classifier"}
+        ]
+
+        # BERT encoder layers: top layers get higher LR, bottom layers get lower LR
+        num_layers = self.bert.config.num_hidden_layers
+        for layer_idx in range(num_layers - 1, -1, -1):
+            # Distance from top: layer 11 (top) gets factor^0, layer 0 gets factor^11
+            distance_from_top = (num_layers - 1) - layer_idx
+            layer_lr = base_lr * (llrd_factor ** distance_from_top)
+            param_groups.append({
+                "params": self.bert.encoder.layer[layer_idx].parameters(),
+                "lr": layer_lr,
+                "name": f"bert_layer_{layer_idx}"
+            })
+
+        # Embeddings: very small LR (preserve pretrained embeddings)
+        param_groups.append({
+            "params": self.bert.embeddings.parameters(),
+            "lr": base_lr * (llrd_factor ** num_layers),
+            "name": "bert_embeddings"
+        })
+
+        return param_groups
+
+
+def create_model(config, class_weights=None):
     """
     Create PhoBERT model from config
 
     Args:
         config: Model configuration dictionary
+        class_weights: Optional tensor of class weights for imbalanced dataset
 
     Returns:
         PhoBERTEmotionClassifier: Initialized model
@@ -163,7 +208,10 @@ def create_model(config):
     model = PhoBERTEmotionClassifier(
         model_name=config['model']['name'],
         num_labels=config['model']['num_labels'],
-        dropout=config['model']['dropout']
+        dropout=config['model']['dropout'],
+        label_smoothing=config['model'].get('label_smoothing', 0.0),
+        focal_gamma=config['model'].get('focal_gamma', 2.0),
+        class_weights=class_weights
     )
 
     num_params = model.get_num_parameters()

@@ -9,14 +9,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import torch
 import argparse
+import numpy as np
+from sklearn.utils.class_weight import compute_class_weight
 from src.data.dataset import EmotionDataset
-from src.models.phobert_classifier import PhoBERTEmotionClassifier
+from src.models.phobert_classifier import PhoBERTEmotionClassifier, create_model
 from src.models.model_utils import save_model, get_device, print_model_summary
 from src.training.trainer import train_model
 from src.utils.config import load_all_configs
 from src.utils.logger import setup_logger
 from src.utils.metrics import compute_metrics, print_metrics, plot_confusion_matrix
-import numpy as np
 
 
 def parse_args():
@@ -109,15 +110,22 @@ def main():
     logger.info(f"Validation samples: {len(val_dataset)}")
     logger.info(f"Test samples: {len(test_dataset)}")
 
+    # Compute class weights from training data (handles class imbalance)
+    class_weights_tensor = None
+    if training_config['training'].get('use_class_weights', True):
+        logger.info("\n3a. Computing class weights...")
+        train_labels = [train_dataset[i]['labels'].item() for i in range(len(train_dataset))]
+        classes = np.arange(model_config['model']['num_labels'])
+        weights = compute_class_weight('balanced', classes=classes, y=train_labels)
+        class_weights_tensor = torch.tensor(weights, dtype=torch.float32)
+        label_names = model_config.get('emotion_labels', {})
+        for i, w in enumerate(weights):
+            label_name = label_names.get(i, str(i))
+            logger.info(f"  Class {i} ({label_name}): weight={w:.4f}")
+
     # Create model
     logger.info("\n3. Creating model...")
-    model = PhoBERTEmotionClassifier(
-        model_name=model_config['model']['name'],
-        num_labels=model_config['model']['num_labels'],
-        dropout=model_config['model']['dropout'],
-        label_smoothing=model_config['model'].get('label_smoothing', 0.0),
-        focal_gamma=model_config['model'].get('focal_gamma', 2.0)
-    )
+    model = create_model(model_config, class_weights=class_weights_tensor)
 
     model.to(device)
     print_model_summary(model)
