@@ -36,7 +36,7 @@ def download_uit_vsmec(output_dir="data/raw"):
         splits = {}
         for split_name in ['train', 'validation', 'test']:
             # Convert to DataFrame
-            df = dataset[split_name].to_pandas()
+            df: pd.DataFrame = dataset[split_name].to_pandas()  # type: ignore[assignment]
             splits[split_name] = df
 
             # Save to CSV

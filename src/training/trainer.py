@@ -3,6 +3,7 @@ Training utilities using Hugging Face Trainer API
 """
 import torch
 import numpy as np
+from typing import Any
 from torch.optim import AdamW
 from transformers import (
     Trainer,
@@ -87,7 +88,6 @@ def create_training_arguments(
         dataloader_num_workers=0,
         remove_unused_columns=False,
         lr_scheduler_type="cosine",
-        **warmup_kwargs
     )
 
     return args
@@ -126,9 +126,11 @@ class EmotionTrainer(Trainer):
         self.llrd_factor = llrd_factor
         super().__init__(*args, **kwargs)
 
-    def create_optimizer(self):
+    def create_optimizer(self, model=None):  # noqa: ARG002
         if self.llrd_factor and hasattr(self.model, 'get_parameter_groups'):
-            param_groups = self.model.get_parameter_groups(
+            assert self.model is not None
+            _model: Any = self.model
+            param_groups = _model.get_parameter_groups(
                 base_lr=self.args.learning_rate,
                 llrd_factor=self.llrd_factor
             )

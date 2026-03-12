@@ -3,10 +3,10 @@ Configuration management utilities
 """
 import yaml
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Union
 
 
-def load_config(config_path: str) -> Dict[str, Any]:
+def load_config(config_path: Union[str, Path]) -> Dict[str, Any]:
     """
     Load YAML configuration file
 
@@ -48,7 +48,7 @@ def load_all_configs(config_dir: str = "configs") -> Dict[str, Dict[str, Any]]:
     return configs
 
 
-def save_config(config: Dict[str, Any], config_path: str):
+def save_config(config: Dict[str, Any], config_path: Union[str, Path]):
     """
     Save configuration to YAML file
 

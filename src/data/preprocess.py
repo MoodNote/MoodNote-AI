@@ -10,6 +10,7 @@ try:
     from pyvi import ViTokenizer
     PYVI_AVAILABLE = True
 except ImportError:
+    ViTokenizer = None  # type: ignore[assignment]
     PYVI_AVAILABLE = False
     print("Warning: pyvi not installed. Install with: pip install pyvi")
 
@@ -48,6 +49,7 @@ class VietnamesePreprocessor:
 
         if self.segmenter == "pyvi":
             # Use pyvi for word segmentation
+            assert ViTokenizer is not None
             segmented = ViTokenizer.tokenize(text)
             return segmented
         else:

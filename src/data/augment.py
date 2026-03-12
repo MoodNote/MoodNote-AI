@@ -97,7 +97,7 @@ def augment_dataset(
     input_csv: str,
     output_csv: str,
     target_counts: dict,
-    techniques: list = ("deletion", "swap"),
+    techniques: list = ["deletion", "swap"],
     seed: int = 42
 ) -> pd.DataFrame:
     """
@@ -126,8 +126,9 @@ def augment_dataset(
     # Show current distribution
     print("\nCurrent class distribution:")
     for label_idx, count in sorted(df['label'].value_counts().items()):
-        name = EMOTION_NAMES.get(label_idx, str(label_idx))
-        target = target_counts.get(label_idx, count)
+        idx: int = label_idx  # type: ignore[assignment]
+        name = EMOTION_NAMES.get(idx, str(idx))
+        target = target_counts.get(idx, int(count))
         print(f"  {name:12s} (class {label_idx}): {count:4d} → target {target:4d}")
 
     augmented_rows = []
@@ -182,8 +183,9 @@ def augment_dataset(
 
     print("\nFinal class distribution:")
     for label_idx, count in sorted(result_df['label'].value_counts().items()):
-        name = EMOTION_NAMES.get(label_idx, str(label_idx))
-        print(f"  {name:12s} (class {label_idx}): {count:4d}")
+        idx: int = label_idx  # type: ignore[assignment]
+        name = EMOTION_NAMES.get(idx, str(idx))
+        print(f"  {name:12s} (class {idx}): {count:4d}")
 
     return result_df
 

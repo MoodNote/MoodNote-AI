@@ -47,9 +47,9 @@ def compute_metrics(predictions, labels):
     f1_weighted = f1_score(labels, preds, average='weighted')
 
     # Per-class metrics
-    precision, recall, f1, support = precision_recall_fscore_support(
+    precision, recall, f1, support = (np.asarray(x) for x in precision_recall_fscore_support(
         labels, preds, average=None, zero_division=0
-    )
+    ))
 
     # Create results dictionary
     metrics = {

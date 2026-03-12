@@ -5,12 +5,13 @@ import logging
 import sys
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 
 
 def setup_logger(
     name: str = "moodnote",
     log_dir: str = "logs",
-    log_file: str = None,
+    log_file: Optional[str] = None,
     level: int = logging.INFO
 ) -> logging.Logger:
     """

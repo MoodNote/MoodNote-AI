@@ -147,9 +147,11 @@ class PhoBERTEmotionClassifier(nn.Module):
         if labels is not None:
             weight = self.class_weights.to(logits.device) if self.class_weights is not None else None
             if self.focal_gamma > 0:
-                loss = FocalLoss(gamma=self.focal_gamma, weight=weight, label_smoothing=self.label_smoothing)(logits, labels)
+                loss_fn = FocalLoss(gamma=self.focal_gamma, weight=weight, label_smoothing=self.label_smoothing)
+                loss = loss_fn(logits, labels)
             else:
-                loss = nn.CrossEntropyLoss(weight=weight, label_smoothing=self.label_smoothing)(logits, labels)
+                loss_fn = nn.CrossEntropyLoss(weight=weight, label_smoothing=self.label_smoothing)
+                loss = loss_fn(logits, labels)
 
         return SequenceClassifierOutput(loss=loss, logits=logits)
 
@@ -252,5 +254,5 @@ if __name__ == "__main__":
 
     print(f"\nTest forward pass:")
     print(f"Input shape: {dummy_input_ids.shape}")
-    print(f"Output shape: {logits.shape}")
-    print(f"Output (logits): {logits}")
+    print(f"Output shape: {logits.logits.shape}")
+    print(f"Output (logits): {logits.logits}")
