@@ -188,7 +188,29 @@ def preprocess_dataset(
 
 def main():
     """Main function"""
-    preprocess_dataset()
+    import argparse
+    parser = argparse.ArgumentParser(description="Preprocess Vietnamese emotion dataset")
+    parser.add_argument(
+        "--input-dir",
+        default="data/merged",
+        help="Directory containing raw CSV files (default: data/merged)"
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="data/processed",
+        help="Directory to save preprocessed files (default: data/processed)"
+    )
+    parser.add_argument(
+        "--config",
+        default="configs/model_config.yaml",
+        help="Path to model config YAML (default: configs/model_config.yaml)"
+    )
+    args = parser.parse_args()
+    preprocess_dataset(
+        input_dir=args.input_dir,
+        output_dir=args.output_dir,
+        config_path=args.config,
+    )
 
 
 if __name__ == "__main__":

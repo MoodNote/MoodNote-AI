@@ -17,6 +17,7 @@ __pycache__/
 # Data
 data/raw/
 data/processed/
+data/merged/
 data/cache/
 
 # Models
@@ -55,3 +56,6 @@ nul
 #AI
 .claude
 *.md
+
+#Data
+./data

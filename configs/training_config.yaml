@@ -2,7 +2,7 @@ training:
     learning_rate: 1.8e-5 # Run 1: giảm nhẹ LR để ổn định hơn
     batch_size: 16
     gradient_accumulation_steps: 2 # effective batch = 16 * 2 = 32
-    num_epochs: 20 # tăng ceiling, early stopping sẽ dừng đúng lúc
+    num_epochs: 15 # merged dataset lớn hơn 3-4x, giảm ceiling để tránh overfit
     warmup_ratio: 0.10 # tăng từ 0.06 → warmup dài hơn, training ổn định hơn
     weight_decay: 0.05 # tăng từ 0.01 → L2 regularization mạnh hơn cho dataset nhỏ
     fp16: true
@@ -21,12 +21,12 @@ scheduler:
     type: "cosine"
 
 logging:
-    log_steps: 25 # tăng granularity từ 50 → 25
-    eval_steps: 80 # Run 1: theo dõi sớm hơn quanh vùng peak
-    save_steps: 80 # match eval_steps
-    save_total_limit: 4 # Run 1: giữ số checkpoint vừa đủ
+    log_steps: 50 # merged dataset ~3-4x lớn hơn, giảm log noise
+    eval_steps: 200 # ~3 evals/epoch với ~21k train samples (batch effective=32)
+    save_steps: 200 # match eval_steps
+    save_total_limit: 4
 
 wandb:
     project: "moodnote-ai"
-    name: "phobert-base-v2-augmented"
+    name: "phobert-base-v3-merged-vigoemotions"
     enabled: true

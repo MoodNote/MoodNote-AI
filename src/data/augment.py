@@ -197,6 +197,10 @@ if __name__ == "__main__":
     augment_dataset(
         input_csv=str(base_dir / "data/processed/train.csv"),
         output_csv=str(base_dir / "data/processed/train_augmented.csv"),
-        target_counts={2: 700, 3: 700, 5: 600},   # Anger, Fear, Surprise
+        # After merging with ViGoEmotions, update these targets based on the
+        # merge report output. ViGoEmotions boosts most classes; typically only
+        # Fear (3) and Disgust (4) remain as minority classes.
+        # Run `python -m src.data.merge_datasets` to see suggested targets.
+        target_counts={3: 1500, 4: 1000},          # Fear, Disgust (post-merge estimate)
         techniques=["deletion", "swap"]
     )
