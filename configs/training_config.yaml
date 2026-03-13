@@ -1,10 +1,10 @@
 training:
-    learning_rate: 1.8e-5 # Run 1: giảm nhẹ LR để ổn định hơn
+    learning_rate: 1e-5
     batch_size: 16
     gradient_accumulation_steps: 2 # effective batch = 16 * 2 = 32
-    num_epochs: 15 # merged dataset lớn hơn 3-4x, giảm ceiling để tránh overfit
-    warmup_ratio: 0.10 # tăng từ 0.06 → warmup dài hơn, training ổn định hơn
-    weight_decay: 0.05 # tăng từ 0.01 → L2 regularization mạnh hơn cho dataset nhỏ
+    num_epochs: 20
+    warmup_ratio: 0.15
+    weight_decay: 0.1
     fp16: true
     seed: 42
     early_stopping_patience: 7 # tăng từ 3 → đủ rộng để vượt qua fluctuation (~350 steps sau peak)
