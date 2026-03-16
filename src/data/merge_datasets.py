@@ -37,11 +37,12 @@ VIGOEMOTIONS_TO_VSMEC: dict[str, str] = {
     "fear": "Fear", "nervousness": "Fear",
     # Disgust
     "disgust": "Disgust", "embarrassment": "Disgust",
-    # Surprise
-    "surprise": "Surprise", "curiosity": "Surprise",
-    # Other — cognitive/ambiguous states không map rõ sang VSMEC
-    "neutral": "Other", "annoyance": "Other",
-    "confusion": "Other", "realization": "Other",
+    # Surprise — loại bỏ curiosity (curiosity ≠ surprise, sai nghĩa)
+    "surprise": "Surprise",
+    # Other — chỉ giữ neutral (rõ ràng); loại bỏ ambiguous/cognitive states:
+    # annoyance (gần Anger/Disgust hơn Other), curiosity (đã loại ở Surprise),
+    # confusion và realization (cognitive states, không phải cảm xúc)
+    "neutral": "Other",
 }
 
 # Conflict resolution priority (highest → lowest)
