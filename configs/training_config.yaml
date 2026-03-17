@@ -7,7 +7,7 @@ training:
     weight_decay: 0.1
     fp16: true
     seed: 42
-    early_stopping_patience: 5 # giảm từ 7 → dừng sớm hơn khi overfit
+    early_stopping_patience: 3 # giảm từ 5 → dừng sớm hơn khi overfit
     use_llrd: true # Layer-wise LR Decay
     llrd_factor: 0.9 # mỗi layer giảm 10% so với layer trên
     use_class_weights: true # tính class weights từ training data
@@ -22,8 +22,8 @@ scheduler:
 
 logging:
     log_steps: 50 # merged dataset ~3-4x lớn hơn, giảm log noise
-    eval_steps: 200 # ~3 evals/epoch với ~21k train samples (batch effective=32)
-    save_steps: 200 # match eval_steps
+    eval_steps: 100 # granular hơn để bắt best checkpoint sớm hơn
+    save_steps: 100 # match eval_steps
     save_total_limit: 4
 
 wandb:
