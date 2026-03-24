@@ -394,12 +394,15 @@ def main(
     minority_classes = {"Anger", "Fear", "Disgust", "Surprise", "Other"}
 
     # Cap per class from ViGoEmotions (after dedup)
+    # Rationale from test results (run 2):
+    #   - Anger (recall=0.35): 19/40 confused with Disgust → reduce Disgust, increase Anger
+    #   - Surprise (recall=0.30): 11/37 confused with Other → reduce Other, increase Surprise
     max_per_class = {
-        "Anger":    500,   # 391  + 500 → ~891
-        "Fear":     500,   # 318  + 500 → ~818
-        "Disgust":  500,   # 838  + 500 → ~1338
-        "Surprise": 600,   # 242  + 600 → ~842
-        "Other":    400,   # 896  + 400 → ~1296
+        "Anger":    700,   # 391  + 700 → ~1091  (was 500, recall=0.35 → needs more)
+        "Fear":     500,   # 318  + 500 → ~818   (unchanged, already improved)
+        "Disgust":  300,   # 838  + 300 → ~1138  (was 500, too much → confused Anger)
+        "Surprise": 900,   # 242  + 900 → ~1142  (was 600, recall=0.30 → needs more)
+        "Other":    250,   # 896  + 250 → ~1146  (was 400, too much → absorbing Surprise)
     }
 
     print("Starting dataset merge: UIT-VSMEC + ViGoEmotions")

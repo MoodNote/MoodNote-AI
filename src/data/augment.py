@@ -1,6 +1,6 @@
 """
 Data augmentation for Vietnamese emotion classification.
-Applies Random Deletion and Random Swap to minority classes.
+Applies Random Deletion, Random Swap, and Random Insertion to minority classes.
 
 Input: processed CSV with 'text' (pyvi-segmented) and 'label' (int) columns.
 Output: augmented CSV with original + synthetic samples.
@@ -24,12 +24,13 @@ class VietnameseAugmenter:
     Techniques:
     - random_deletion: Remove tokens with probability p
     - random_swap: Swap two random tokens n times
+    - random_insertion: Insert a copy of an existing token at a random position
     """
 
     def __init__(self, seed=42):
         random.seed(seed)
 
-    def random_deletion(self, text: str, p: float = 0.15) -> str:
+    def random_deletion(self, text: str, p: float = 0.20) -> str:
         """
         Randomly delete tokens from segmented text.
 
@@ -52,7 +53,7 @@ class VietnameseAugmenter:
 
         return " ".join(kept)
 
-    def random_swap(self, text: str, n: int = 1) -> str:
+    def random_swap(self, text: str, n: int = 2) -> str:
         """
         Randomly swap two tokens in the text, n times.
 
@@ -74,6 +75,32 @@ class VietnameseAugmenter:
 
         return " ".join(tokens)
 
+    def random_insertion(self, text: str, n: int = 1) -> str:
+        """
+        Randomly insert a copy of an existing token at a random position, n times.
+
+        Picks a word already present in the sentence to preserve in-domain
+        vocabulary and semantic meaning. No external dictionary needed.
+
+        Args:
+            text: pyvi-segmented text
+            n: number of insertion operations
+
+        Returns:
+            Augmented text
+        """
+        tokens = text.split()
+        if len(tokens) == 0:
+            return text
+
+        tokens = tokens.copy()
+        for _ in range(n):
+            insert_word = random.choice(tokens)
+            insert_pos = random.randint(0, len(tokens))
+            tokens.insert(insert_pos, insert_word)
+
+        return " ".join(tokens)
+
     def augment(self, text: str, technique: str = "deletion") -> str:
         """
         Apply a single augmentation technique.
@@ -89,8 +116,12 @@ class VietnameseAugmenter:
             return self.random_deletion(text)
         elif technique == "swap":
             return self.random_swap(text)
+        elif technique == "insertion":
+            return self.random_insertion(text)
         else:
-            raise ValueError(f"Unknown technique: {technique}. Use 'deletion' or 'swap'.")
+            raise ValueError(
+                f"Unknown technique: {technique}. Use 'deletion', 'swap', or 'insertion'."
+            )
 
 
 def augment_dataset(
@@ -197,10 +228,13 @@ if __name__ == "__main__":
     augment_dataset(
         input_csv=str(base_dir / "data/processed/train.csv"),
         output_csv=str(base_dir / "data/processed/train_augmented.csv"),
-        # After merging with ViGoEmotions, update these targets based on the
-        # merge report output. ViGoEmotions boosts most classes; typically only
-        # Fear (3) and Disgust (4) remain as minority classes.
-        # Run `python -m src.data.merge_datasets` to see suggested targets.
-        target_counts={3: 1500, 4: 1000},          # Fear, Disgust (post-merge estimate)
-        techniques=["deletion", "swap"]
+        # Post-merge distribution (after ViGoEmotions): Anger~1091, Fear~818,
+        # Disgust~1138, Surprise~1142, Other~1146, Enjoyment~1558, Sadness~947
+        # Targets based on test results:
+        #   Anger   (2): recall=0.35 → target 1800 (confused with Disgust, needs more)
+        #   Fear    (3): ~818 samples, below median (~1100) → target 1400
+        #   Disgust (4): recall=0.57 → target 1300 (cap to avoid overwhelming Anger)
+        #   Surprise(5): recall=0.30 → target 2000 (lowest recall, needs most boost)
+        target_counts={2: 1800, 3: 1400, 4: 1300, 5: 2000},
+        techniques=["deletion", "swap", "insertion"]
     )
