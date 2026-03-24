@@ -5,7 +5,7 @@ model:
     max_seq_length: 128
     dropout: 0.3          # tăng từ 0.2 → giảm overfitting (train loss=0.085 vs val loss=1.092)
     label_smoothing: 0.15 # tăng từ 0.1 → regularization mềm hơn
-    focal_gamma: 3.0      # tăng từ 2.0 → phạt nặng hơn với Anger/Disgust confused samples
+    focal_gamma: 2.5      # compromise: 2.0 (cũ) → 3.0 gây Anger over-predict → 2.5 cân bằng hơn
 
 emotion_labels:
     0: "Enjoyment"
