@@ -5,6 +5,10 @@ import torch
 from pathlib import Path
 from transformers import AutoTokenizer
 from .phobert_classifier import PhoBERTEmotionClassifier
+from ..utils.logger import get_logger
+
+
+logger = get_logger("model_utils")
 
 
 def save_model(model, tokenizer, save_dir, config=None):
@@ -42,7 +46,7 @@ def save_model(model, tokenizer, save_dir, config=None):
         with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(config, f)
 
-    print(f"Model saved to {save_dir}")
+    logger.info(f"Model saved to {save_dir}")
 
 
 def load_model(load_dir, device='cpu'):
@@ -79,7 +83,7 @@ def load_model(load_dir, device='cpu'):
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(load_path)
 
-    print(f"Model loaded from {load_dir}")
+    logger.info(f"Model loaded from {load_dir}")
     return model, tokenizer
 
 
@@ -113,10 +117,10 @@ def get_device():
     """
     if torch.cuda.is_available():
         device = torch.device('cuda')
-        print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+        logger.info(f"Using GPU: {torch.cuda.get_device_name(0)}")
     else:
         device = torch.device('cpu')
-        print("Using CPU")
+        logger.info("Using CPU")
 
     return device
 

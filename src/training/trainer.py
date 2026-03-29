@@ -4,6 +4,7 @@ Training utilities using Hugging Face Trainer API
 import torch
 import torch.nn.functional as F
 import numpy as np
+import math
 from typing import Any
 from torch.optim import AdamW
 from transformers import (
@@ -215,10 +216,23 @@ def train_model(
     # Create training arguments
     t_cfg = training_config['training']
     grad_accum = t_cfg.get('gradient_accumulation_steps', 1)
-    steps_per_epoch = len(train_dataset) // (t_cfg['batch_size'] * grad_accum)
-    total_steps = steps_per_epoch * t_cfg['num_epochs']
+    train_size = len(train_dataset)
+    if train_size == 0:
+        raise ValueError("Training dataset is empty.")
+
+    effective_batch_size = t_cfg['batch_size'] * grad_accum
+    steps_per_epoch = max(1, math.ceil(train_size / effective_batch_size))
+    total_steps = max(1, steps_per_epoch * t_cfg['num_epochs'])
     warmup_ratio = t_cfg.get('warmup_ratio', 0.0)
-    warmup_steps = int(total_steps * warmup_ratio) if warmup_ratio > 0 else t_cfg.get('warmup_steps', 100)
+    if warmup_ratio > 0:
+        warmup_steps = max(1, int(total_steps * warmup_ratio))
+    else:
+        warmup_steps = t_cfg.get('warmup_steps', 100)
+
+    logger.info(
+        f"Training schedule: train_size={train_size}, effective_batch_size={effective_batch_size}, "
+        f"steps_per_epoch={steps_per_epoch}, total_steps={total_steps}, warmup_steps={warmup_steps}"
+    )
 
     training_args = create_training_arguments(
         output_dir=output_dir,

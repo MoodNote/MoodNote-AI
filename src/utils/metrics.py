@@ -11,17 +11,10 @@ from sklearn.metrics import (
 )
 import matplotlib.pyplot as plt
 import seaborn as sns
+from .emotion_constants import DEFAULT_EMOTION_LABELS
 
 
-EMOTION_LABELS = {
-    0: "Enjoyment",
-    1: "Sadness",
-    2: "Anger",
-    3: "Fear",
-    4: "Disgust",
-    5: "Surprise",
-    6: "Other"
-}
+EMOTION_LABELS = DEFAULT_EMOTION_LABELS.copy()
 
 
 def compute_metrics(predictions, labels):

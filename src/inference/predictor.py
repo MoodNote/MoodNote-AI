@@ -7,6 +7,15 @@ from pathlib import Path
 from ..models.model_utils import load_model
 from ..data.preprocess import VietnamesePreprocessor
 from ..utils.keyword_extractor import VietnameseKeywordExtractor
+from ..utils.logger import get_logger
+from ..utils.emotion_constants import (
+    normalize_emotion_labels,
+    normalize_sentiment_scores,
+    find_label_index_by_name,
+)
+
+
+logger = get_logger("predictor")
 
 
 class EmotionPredictor:
@@ -33,36 +42,15 @@ class EmotionPredictor:
         self.device = device
         self.model_path = model_path
 
-        # Default emotion labels
-        if emotion_labels is None:
-            self.emotion_labels = {
-                0: "Enjoyment",
-                1: "Sadness",
-                2: "Anger",
-                3: "Fear",
-                4: "Disgust",
-                5: "Surprise",
-                6: "Other"
-            }
-        else:
-            self.emotion_labels = emotion_labels
+        self.emotion_labels = normalize_emotion_labels(emotion_labels)
+        self.other_label_index = find_label_index_by_name(self.emotion_labels, "Other")
+        if self.other_label_index is None:
+            logger.warning('No "Other" label found in emotion_labels; low-confidence fallback is disabled.')
 
-        # Default sentiment scores per emotion (FR-11)
-        if sentiment_scores is None:
-            self.sentiment_scores = {
-                "Enjoyment": 1.0,
-                "Surprise": 0.3,
-                "Other": 0.0,
-                "Fear": -0.5,
-                "Disgust": -0.7,
-                "Sadness": -0.8,
-                "Anger": -0.9
-            }
-        else:
-            self.sentiment_scores = sentiment_scores
+        self.sentiment_scores = normalize_sentiment_scores(sentiment_scores)
 
         # Load model and tokenizer
-        print(f"Loading model from {model_path}...")
+        logger.info(f"Loading model from {model_path}...")
         self.model, self.tokenizer = load_model(model_path, device=device)
 
         # Initialize preprocessor
@@ -71,7 +59,7 @@ class EmotionPredictor:
         # Initialize keyword extractor (FR-13)
         self.keyword_extractor = VietnameseKeywordExtractor(max_keywords=10)
 
-        print("Predictor initialized successfully!")
+        logger.info("Predictor initialized successfully!")
 
     def preprocess_text(self, text):
         """
@@ -129,17 +117,21 @@ class EmotionPredictor:
 
         # Get prediction
         max_prob = float(np.max(probs))
-        if other_threshold > 0 and max_prob < other_threshold:
-            pred_idx = 6  # Other — model không đủ confident về bất kỳ class nào
+        if (
+            other_threshold > 0
+            and max_prob < other_threshold
+            and self.other_label_index is not None
+        ):
+            pred_idx = self.other_label_index
         else:
             pred_idx = int(np.argmax(probs))
-        pred_emotion = self.emotion_labels[pred_idx]
+        pred_emotion = self.emotion_labels.get(pred_idx, str(pred_idx))
         confidence = float(probs[pred_idx])
 
         # FR-11: Sentiment score (-1.0 to +1.0) — weighted sum of emotion sentiments
         sentiment_score = float(sum(
-            self.sentiment_scores.get(self.emotion_labels[i], 0.0) * float(probs[i])
-            for i in range(len(probs))
+            self.sentiment_scores.get(self.emotion_labels.get(i, ""), 0.0) * float(prob)
+            for i, prob in enumerate(probs)
         ))
         sentiment_score = round(sentiment_score, 4)
 
@@ -164,8 +156,8 @@ class EmotionPredictor:
 
         if return_probabilities:
             result['probabilities'] = {
-                self.emotion_labels[i]: float(probs[i])
-                for i in range(len(probs))
+                self.emotion_labels.get(i, str(i)): float(prob)
+                for i, prob in enumerate(probs)
             }
 
         return result
