@@ -1,9 +1,10 @@
 """
 FastAPI application for emotion prediction
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import torch
 from pathlib import Path
 from .predictor import EmotionPredictor
@@ -21,6 +22,14 @@ app = FastAPI(
 
 # Global predictor instance
 predictor: Optional[EmotionPredictor] = None
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "message": exc.detail}
+    )
 
 
 # Pydantic models
@@ -126,13 +135,13 @@ async def startup_event():
 async def root():
     """Root endpoint"""
     return {
+        "success": True,
         "message": "Welcome to MoodNote AI - Vietnamese Emotion Classification API",
-        "version": "1.0.0",
-        "docs": "/docs"
+        "data": {"version": "1.0.0", "docs": "/docs"}
     }
 
 
-@app.get("/health", response_model=HealthResponse, tags=["General"])
+@app.get("/health", tags=["General"])
 async def health_check():
     """Health check endpoint"""
     model_loaded = predictor is not None
@@ -141,29 +150,37 @@ async def health_check():
     if predictor is not None:
         device = str(predictor.device)
 
-    return HealthResponse(
-        status="healthy" if model_loaded else "degraded",
-        model_loaded=model_loaded,
-        device=device
-    )
+    return {
+        "success": True,
+        "message": "OK",
+        "data": HealthResponse(
+            status="healthy" if model_loaded else "degraded",
+            model_loaded=model_loaded,
+            device=device
+        ).model_dump()
+    }
 
 
-@app.get("/model/info", response_model=ModelInfoResponse, tags=["Model"])
+@app.get("/model/info", tags=["Model"])
 async def model_info():
     """Get model information"""
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
-    return ModelInfoResponse(
-        model_name="PhoBERT",
-        model_path=predictor.model_path,
-        num_labels=len(predictor.emotion_labels),
-        emotion_labels=predictor.emotion_labels,
-        device=str(predictor.device)
-    )
+    return {
+        "success": True,
+        "message": "OK",
+        "data": ModelInfoResponse(
+            model_name="PhoBERT",
+            model_path=predictor.model_path,
+            num_labels=len(predictor.emotion_labels),
+            emotion_labels=predictor.emotion_labels,
+            device=str(predictor.device)
+        ).model_dump()
+    }
 
 
-@app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
+@app.post("/predict", tags=["Prediction"])
 async def predict(request: PredictionRequest):
     """
     Predict emotion for a single text
@@ -179,14 +196,18 @@ async def predict(request: PredictionRequest):
 
     try:
         result = predictor.predict(request.text, return_probabilities=True)
-        return PredictionResponse(**result)
+        return {
+            "success": True,
+            "message": "Prediction successful",
+            "data": PredictionResponse(**result).model_dump()
+        }
 
     except Exception as e:
         logger.error(f"Prediction error: {e}")
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
 
-@app.post("/predict/batch", response_model=BatchPredictionResponse, tags=["Prediction"])
+@app.post("/predict/batch", tags=["Prediction"])
 async def predict_batch(request: BatchPredictionRequest):
     """
     Predict emotions for multiple texts
@@ -205,10 +226,14 @@ async def predict_batch(request: BatchPredictionRequest):
 
         predictions = [PredictionResponse(**result) for result in results]
 
-        return BatchPredictionResponse(
-            predictions=predictions,
-            count=len(predictions)
-        )
+        return {
+            "success": True,
+            "message": "Batch prediction successful",
+            "data": {
+                "predictions": [p.model_dump() for p in predictions],
+                "count": len(predictions)
+            }
+        }
 
     except Exception as e:
         logger.error(f"Batch prediction error: {e}")

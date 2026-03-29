@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import uvicorn
 import argparse
+import yaml
 from src.utils.config import load_config
 
 
@@ -54,7 +55,8 @@ def main():
         port = api_config['api'].get('port', args.port)
         reload = api_config['api'].get('reload', args.reload)
         workers = api_config['api'].get('workers', args.workers)
-    except:
+    except (FileNotFoundError, KeyError, TypeError, ValueError, yaml.YAMLError) as exc:
+        print(f"Warning: failed to load configs/api_config.yaml ({exc}); using CLI/default values.")
         host = args.host
         port = args.port
         reload = args.reload
