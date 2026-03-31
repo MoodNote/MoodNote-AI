@@ -29,5 +29,5 @@ logging:
 
 wandb:
     project: "moodnote-ai"
-    name: "visobert-v1"
+    name: "phobert-base-v2"
     enabled: true

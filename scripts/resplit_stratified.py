@@ -1,5 +1,10 @@
 import pandas as pd
 import numpy as np
+from pathlib import Path
+
+# Repo root = two levels up from this script (scripts/ → repo root)
+REPO_ROOT    = Path(__file__).resolve().parent.parent
+PROCESSED_DIR = REPO_ROOT / "data" / "processed"
 
 EMOTION_NAMES = {
     0: "Enjoyment", 1: "Sadness", 2: "Anger",
@@ -7,9 +12,9 @@ EMOTION_NAMES = {
 }
 
 # ── Load all splits ───────────────────────────────────────────────────────────
-merged_train = pd.read_csv("d:/Project/MoodNote/MoodNote-AI/data/processed/train.csv", encoding='utf-8')
-merged_test  = pd.read_csv("d:/Project/MoodNote/MoodNote-AI/data/processed/test.csv",  encoding='utf-8')
-merged_val   = pd.read_csv("d:/Project/MoodNote/MoodNote-AI/data/processed/validation.csv", encoding='utf-8')
+merged_train = pd.read_csv(PROCESSED_DIR / "train.csv",      encoding='utf-8')
+merged_test  = pd.read_csv(PROCESSED_DIR / "test.csv",       encoding='utf-8')
+merged_val   = pd.read_csv(PROCESSED_DIR / "validation.csv", encoding='utf-8')
 
 all_data = pd.concat([merged_train, merged_val, merged_test], ignore_index=True)
 print(f"Total samples before deduplication: {len(all_data)}")
@@ -96,8 +101,8 @@ for label in range(7):
     print(f"{EMOTION_NAMES[label]:<14} {t:>6} {v:>6} {s:>6}")
 
 # ── Save ──────────────────────────────────────────────────────────────────────
-train.to_csv("d:/Project/MoodNote/MoodNote-AI/data/processed/train.csv",      index=False, encoding="utf-8")
-val.to_csv(  "d:/Project/MoodNote/MoodNote-AI/data/processed/validation.csv", index=False, encoding="utf-8")
-test.to_csv( "d:/Project/MoodNote/MoodNote-AI/data/processed/test.csv",       index=False, encoding="utf-8")
+train.to_csv(PROCESSED_DIR / "train.csv",      index=False, encoding="utf-8")
+val.to_csv(  PROCESSED_DIR / "validation.csv", index=False, encoding="utf-8")
+test.to_csv( PROCESSED_DIR / "test.csv",       index=False, encoding="utf-8")
 
 print("\nFiles saved!")
