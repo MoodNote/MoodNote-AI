@@ -4,14 +4,14 @@ training:
     gradient_accumulation_steps: 2 # effective batch = 16 * 2 = 32
     num_epochs: 20
     warmup_ratio: 0.1
-    weight_decay: 0.05
+    weight_decay: 0.1
     fp16: true
     seed: 42
-    early_stopping_patience: 5   # giảm từ 10 — với eval_steps=100, patience=10 cho phép 1000 steps không cải thiện
+    early_stopping_patience: 3   # patience=3 × eval_steps=100 = 300 steps, đủ để xác nhận plateau
     use_llrd: true # Layer-wise LR Decay
-    llrd_factor: 0.9 # mỗi layer giảm 10% so với layer trên (12 layers với ViSoBERT base)
+    llrd_factor: 0.85 # mỗi layer giảm 15% so với layer trên — bảo vệ pretrained features tốt hơn
     use_class_weights: true
-    rdrop_alpha: 0.0  # R-Drop alpha (0.0 = tắt); override trong notebook: Stage 2 dùng 1.0
+    rdrop_alpha: 1.0  # R-Drop enabled — regularization chống overfitting
 
 optimizer:
     type: "AdamW"
