@@ -75,8 +75,15 @@ def load_model(load_dir, device='cpu'):
         focal_gamma=checkpoint.get('focal_gamma', 0.0)
     )
 
-    # Load state dict
-    model.load_state_dict(checkpoint['model_state_dict'])
+    # Load state dict — strict=False để tương thích checkpoint cũ có bert.pooler.*
+    # (pooler bị loại khỏi model vì dùng mean pooling, không phải CLS pooling)
+    result = model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+    unexpected = [k for k in result.unexpected_keys if not k.startswith('bert.pooler')]
+    missing = [k for k in result.missing_keys if not k.startswith('bert.pooler')]
+    if unexpected:
+        logger.warning(f"Unexpected keys khi load model: {unexpected}")
+    if missing:
+        logger.warning(f"Missing keys khi load model: {missing}")
     model.to(device)
     model.eval()
 

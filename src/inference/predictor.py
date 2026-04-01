@@ -1,6 +1,7 @@
 """
 Prediction utilities for emotion classification
 """
+import re
 import torch
 import numpy as np
 from pathlib import Path
@@ -13,6 +14,8 @@ from ..utils.emotion_constants import (
     normalize_sentiment_scores,
     find_label_index_by_name,
 )
+
+_SENT_SPLIT_RE = re.compile(r'(?<=[.!?…])\s+|\.\.\.\s+|\n+')
 
 
 logger = get_logger("predictor")
@@ -161,6 +164,101 @@ class EmotionPredictor:
             }
 
         return result
+
+    def _split_sentences(self, text, min_length=3):
+        """Tách văn bản nhật ký thành danh sách câu."""
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        parts = _SENT_SPLIT_RE.split(text)
+        return [p.strip() for p in parts if len(p.strip()) >= min_length]
+
+    def _aggregate_diary_results(self, results):
+        """Tổng hợp kết quả phân tích từng câu thành kết quả chung cho toàn đoạn nhật ký."""
+        emotion_names = list(self.emotion_labels.values())
+
+        # Trọng số theo độ tin cậy của từng câu
+        weights = [r['confidence'] for r in results]
+        total_weight = sum(weights)
+        if total_weight == 0:
+            weights = [1.0] * len(results)
+            total_weight = float(len(results))
+
+        # Trung bình xác suất có trọng số
+        num_classes = len(emotion_names)
+        p_avg = [0.0] * num_classes
+        for w, r in zip(weights, results):
+            for k, name in enumerate(emotion_names):
+                p_avg[k] += w * r['probabilities'].get(name, 0.0)
+        p_avg = [v / total_weight for v in p_avg]
+
+        best_idx = int(p_avg.index(max(p_avg)))
+        overall_emotion = emotion_names[best_idx]
+        overall_confidence = round(p_avg[best_idx], 4)
+
+        # Sentiment và intensity có trọng số
+        overall_sentiment = round(
+            sum(w * r['sentiment_score'] for w, r in zip(weights, results)) / total_weight, 4
+        )
+        overall_intensity = round(
+            sum(w * r['intensity'] for w, r in zip(weights, results)) / total_weight, 2
+        )
+
+        # Phân bố cảm xúc theo số lượng câu
+        counts = {name: 0 for name in emotion_names}
+        for r in results:
+            counts[r['emotion']] = counts.get(r['emotion'], 0) + 1
+        n = len(results)
+        emotion_distribution = {name: round(counts[name] / n, 4) for name in emotion_names}
+
+        return {
+            'overall_emotion':      overall_emotion,
+            'overall_confidence':   overall_confidence,
+            'overall_sentiment':    overall_sentiment,
+            'overall_intensity':    overall_intensity,
+            'emotion_distribution': emotion_distribution,
+        }
+
+    def predict_diary(self, text, other_threshold=0.0, min_sentence_length=3, keyword_count=10):
+        """
+        Phân tích cảm xúc cho toàn bộ đoạn nhật ký.
+
+        Tách đoạn nhật ký thành câu, dự đoán cảm xúc từng câu,
+        sau đó tổng hợp kết quả chung cho toàn bộ đoạn.
+
+        Args:
+            text: Văn bản nhật ký tiếng Việt (nhiều câu, có thể có xuống dòng).
+            other_threshold: Ngưỡng tin cậy tối thiểu, dưới ngưỡng thì trả về "Other".
+            min_sentence_length: Số ký tự tối thiểu để coi là câu hợp lệ.
+            keyword_count: Số từ khóa trích xuất từ toàn bộ đoạn (3-10).
+
+        Returns:
+            dict với các trường: overall_emotion, overall_confidence, overall_sentiment,
+            overall_intensity, emotion_distribution, keywords, sentence_count, sentences.
+        """
+        if not text.strip():
+            raise ValueError("Văn bản nhật ký không được rỗng")
+
+        sentences = self._split_sentences(text, min_length=min_sentence_length)
+        if not sentences:
+            raise ValueError("Không tìm thấy câu hợp lệ trong đoạn nhật ký")
+
+        results = [
+            self.predict(s, return_probabilities=True, other_threshold=other_threshold)
+            for s in sentences
+        ]
+
+        agg = self._aggregate_diary_results(results)
+        keywords = self.keyword_extractor.extract(text, n=keyword_count)
+
+        return {
+            'overall_emotion':      agg['overall_emotion'],
+            'overall_confidence':   agg['overall_confidence'],
+            'overall_sentiment':    agg['overall_sentiment'],
+            'overall_intensity':    agg['overall_intensity'],
+            'emotion_distribution': agg['emotion_distribution'],
+            'keywords':             keywords,
+            'sentence_count':       len(results),
+            'sentences':            results,
+        }
 
     def predict_batch(self, texts, return_probabilities=True):
         """

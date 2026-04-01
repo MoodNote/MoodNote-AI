@@ -78,6 +78,45 @@ class BatchPredictionResponse(BaseModel):
     count: int
 
 
+class SentencePrediction(BaseModel):
+    """Kết quả phân tích từng câu trong đoạn nhật ký"""
+    index: int
+    text: str
+    emotion: str
+    confidence: float
+    sentiment_score: float
+    intensity: float
+    probabilities: Dict[str, float]
+
+
+class DiaryAnalysisRequest(BaseModel):
+    """Yêu cầu phân tích đoạn nhật ký"""
+    text: str = Field(..., description="Đoạn nhật ký tiếng Việt cần phân tích", min_length=1)
+    keyword_count: int = Field(default=10, ge=3, le=10, description="Số từ khóa trích xuất (3-10)")
+    other_threshold: float = Field(default=0.0, ge=0.0, lt=1.0, description="Ngưỡng tin cậy tối thiểu (0.0 = tắt)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "text": "Hôm nay tôi rất mệt mỏi. Công việc quá nhiều khiến tôi căng thẳng. Nhưng tối về nhà thấy gia đình, tôi lại vui hơn.",
+                "keyword_count": 5,
+                "other_threshold": 0.0
+            }
+        }
+
+
+class DiaryAnalysisResponse(BaseModel):
+    """Kết quả phân tích toàn bộ đoạn nhật ký"""
+    overall_emotion: str
+    overall_confidence: float
+    overall_sentiment: float
+    overall_intensity: float
+    emotion_distribution: Dict[str, float]
+    keywords: List[str]
+    sentence_count: int
+    sentences: List[SentencePrediction]
+
+
 class HealthResponse(BaseModel):
     """Health check response"""
     status: str
@@ -238,6 +277,57 @@ async def predict_batch(request: BatchPredictionRequest):
     except Exception as e:
         logger.error(f"Batch prediction error: {e}")
         raise HTTPException(status_code=500, detail=f"Batch prediction failed: {str(e)}")
+
+
+@app.post("/predict/diary", tags=["Prediction"])
+async def predict_diary(request: DiaryAnalysisRequest):
+    """
+    Phân tích cảm xúc cho toàn bộ đoạn nhật ký.
+
+    Tách đoạn nhật ký thành câu, phân loại cảm xúc từng câu,
+    và trả về kết quả tổng hợp cùng timeline cảm xúc theo từng câu.
+
+    - **text**: Đoạn nhật ký tiếng Việt (hỗ trợ nhiều đoạn văn)
+    - **keyword_count**: Số từ khóa trích xuất từ toàn bộ đoạn (3-10)
+    - **other_threshold**: Ngưỡng tin cậy tối thiểu trước khi fallback về "Other"
+    """
+    if predictor is None:
+        raise HTTPException(status_code=503, detail="Model chưa được tải")
+
+    try:
+        result = predictor.predict_diary(
+            text=request.text,
+            other_threshold=request.other_threshold,
+            keyword_count=request.keyword_count,
+        )
+
+        sentences = [
+            SentencePrediction(index=i, **s)
+            for i, s in enumerate(result["sentences"])
+        ]
+
+        response = DiaryAnalysisResponse(
+            overall_emotion=result["overall_emotion"],
+            overall_confidence=result["overall_confidence"],
+            overall_sentiment=result["overall_sentiment"],
+            overall_intensity=result["overall_intensity"],
+            emotion_distribution=result["emotion_distribution"],
+            keywords=result["keywords"],
+            sentence_count=result["sentence_count"],
+            sentences=sentences,
+        )
+
+        return {
+            "success": True,
+            "message": "Phân tích nhật ký thành công",
+            "data": response.model_dump()
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error(f"Lỗi phân tích nhật ký: {e}")
+        raise HTTPException(status_code=500, detail=f"Phân tích thất bại: {str(e)}")
 
 
 if __name__ == "__main__":

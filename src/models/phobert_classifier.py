@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers import AutoModel, AutoConfig
+from transformers import logging as hf_logging
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 
@@ -96,8 +97,11 @@ class PhoBERTEmotionClassifier(nn.Module):
         self.label_smoothing = label_smoothing
         self.focal_gamma = focal_gamma
 
-        # Load PhoBERT model
-        self.bert = AutoModel.from_pretrained(model_name)
+        # Load PhoBERT base model (without CLS pooler — we use mean pooling in forward)
+        _prev_level = hf_logging.get_verbosity()
+        hf_logging.set_verbosity_error()
+        self.bert = AutoModel.from_pretrained(model_name, add_pooling_layer=False)
+        hf_logging.set_verbosity(_prev_level)
 
         # Get hidden size from config (768 for base, 1024 for large)
         config = AutoConfig.from_pretrained(model_name)
