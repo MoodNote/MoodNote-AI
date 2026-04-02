@@ -95,10 +95,13 @@ def main():
         import pandas as pd
         from src.data.augment import augment_dataset
 
+        # Local step: swap/insertion only (no back-translation — needs Colab network).
+        # Back-translation for Enjoyment/Anger/Surprise is handled by scripts/augment_colab.py
+        # which overwrites train_augmented.csv on Colab before training.
         augment_dataset(
             input_csv=str(REPO_ROOT / "data" / "processed" / "train.csv"),
             output_csv=augmented_train,
-            target_counts={0: 2000, 2: 1800, 3: 1500, 4: 1100, 5: 1800},
+            target_counts={0: 2000, 2: 1800, 3: 1200, 4: 1100, 5: 1800},
             techniques=["swap", "insertion"],
             seed=42,
         )

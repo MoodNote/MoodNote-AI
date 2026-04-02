@@ -169,6 +169,7 @@ def augment_dataset(
     output_csv: str,
     target_counts: dict,
     techniques: list = ["deletion", "swap"],
+    class_techniques: "dict | None" = None,
     seed: int = 42
 ) -> pd.DataFrame:
     """
@@ -181,8 +182,10 @@ def augment_dataset(
                        e.g. {2: 700, 3: 700, 5: 600}
                        Only augments classes with fewer samples than target.
                        Classes NOT in this dict are left unchanged.
-        techniques: List of augmentation techniques to cycle through
-                    ["deletion", "swap"]
+        techniques: Default list of augmentation techniques to cycle through.
+        class_techniques: Optional per-class technique override.
+                          e.g. {2: ["back_translation", "swap"], 5: ["back_translation"]}
+                          Classes not listed here fall back to `techniques`.
         seed: Random seed for reproducibility
 
     Returns:
@@ -218,12 +221,14 @@ def augment_dataset(
         print(f"\nAugmenting {name} (class {class_idx}): {current_count} → {target} (+{needed})")
 
         texts = class_df['text'].tolist()
+        active_techniques = (class_techniques or {}).get(class_idx, techniques)
+        print(f"  Techniques: {active_techniques}")
         generated = 0
         technique_idx = 0
 
         while generated < needed:
             source_text = texts[generated % len(texts)]
-            technique = techniques[technique_idx % len(techniques)]
+            technique = active_techniques[technique_idx % len(active_techniques)]
             aug_text = augmenter.augment(source_text, technique=technique)
 
             # Allow duplicate if text is very short (≤3 tokens) — no choice
@@ -270,11 +275,17 @@ if __name__ == "__main__":
         output_csv=str(base_dir / "data/processed/train_augmented.csv"),
         # Post-merge distribution (after ViGoEmotions): Anger~1091, Fear~818,
         # Disgust~1138, Surprise~1142, Other~1146, Enjoyment~1558, Sadness~947
-        # Targets based on test results (v3):
-        #   Anger   (2): F1=0.48, 17/40 nhầm sang Disgust → tăng lên 1800 để model học rõ hơn
-        #   Fear    (3): F1=0.69, ổn → giữ 1500
-        #   Disgust (4): F1=0.60, giảm xuống 1100 để nới rộng khoảng cách với Anger
-        #   Surprise(5): F1=0.52, recall=0.46, 9/37 nhầm sang Other → tăng lên 1800
-        target_counts={0: 2000, 2: 1800, 3: 1500, 4: 1100, 5: 1800},
+        # Targets based on test results (v5):
+        #   Enjoyment(0): 2000, back_translation — fix Disgust confusion (v5: Disgust 40%)
+        #   Anger   (2): 1800, back_translation — fix Anger/Disgust boundary (F1=0.47)
+        #   Fear    (3): thêm lại 1200 swap/insertion — fix class weight (v5: weight=1.633 → ~1.0)
+        #   Disgust (4): 1100 swap/insertion — giữ để nới rộng khoảng cách với Anger
+        #   Surprise(5): 1800, back_translation — fix recall=0.38, nhầm sang Other
+        target_counts={0: 2000, 2: 1800, 3: 1200, 4: 1100, 5: 1800},
+        class_techniques={
+            0: ["back_translation", "swap"],
+            2: ["back_translation", "swap"],
+            5: ["back_translation", "swap"],
+        },
         techniques=["swap", "insertion"]
     )
