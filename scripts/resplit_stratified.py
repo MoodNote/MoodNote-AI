@@ -14,6 +14,16 @@ EMOTION_NAMES = {
 # ── Load train + val only (test giữ nguyên làm held-out benchmark) ────────────
 merged_train = pd.read_csv(PROCESSED_DIR / "train.csv",      encoding='utf-8')
 merged_val   = pd.read_csv(PROCESSED_DIR / "validation.csv", encoding='utf-8')
+test_df      = pd.read_csv(PROCESSED_DIR / "test.csv",       encoding='utf-8')
+
+# Remove any train/val texts that appear in test (prevents leakage)
+test_texts   = set(test_df["text"].str.strip().str.lower())
+before_leak  = len(merged_train) + len(merged_val)
+merged_train = merged_train[~merged_train["text"].str.strip().str.lower().isin(test_texts)]
+merged_val   = merged_val[~merged_val["text"].str.strip().str.lower().isin(test_texts)]
+n_leaked     = before_leak - len(merged_train) - len(merged_val)
+if n_leaked:
+    print(f"Removed {n_leaked} train/val samples that appeared in test set (leakage prevention).")
 
 all_data = pd.concat([merged_train, merged_val], ignore_index=True)
 print(f"Total samples (train+val) before deduplication: {len(all_data)}")

@@ -111,7 +111,8 @@ class VietnameseAugmenter:
         random deletion/swap for learning diverse representations.
 
         Requires: pip install deep_translator
-        Falls back to original text on error (rate limit, network, etc.)
+        Returns original text on failure (rate limit, network, etc.) and
+        prints a warning on the first failure encountered.
 
         Args:
             text: Input text (pyvi-segmented or raw Vietnamese)
@@ -122,9 +123,19 @@ class VietnameseAugmenter:
         try:
             from deep_translator import GoogleTranslator
             en = GoogleTranslator(source='vi', target='en').translate(text)
+            if not en or not en.strip():
+                return text
             vi = GoogleTranslator(source='en', target='vi').translate(en)
             return vi if vi and vi.strip() else text
-        except Exception:
+        except ImportError:
+            if not getattr(self, '_bt_import_warned', False):
+                print("  [back_translate] deep_translator not installed. Run: pip install deep_translator")
+                self._bt_import_warned = True
+            return text
+        except Exception as e:
+            if not getattr(self, '_bt_error_warned', False):
+                print(f"  [back_translate] Error: {e}")
+                self._bt_error_warned = True
             return text
 
     def augment(self, text: str, technique: str = "deletion") -> str:
