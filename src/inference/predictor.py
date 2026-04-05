@@ -2,6 +2,7 @@
 Prediction utilities for emotion classification
 """
 import re
+import unicodedata
 import torch
 import numpy as np
 from pathlib import Path
@@ -76,6 +77,27 @@ class EmotionPredictor:
         """
         return self.preprocessor.segment_text(text)
 
+    def _is_meaningful_text(self, text: str) -> bool:
+        """Kiểm tra text có đủ nội dung chữ để phân tích cảm xúc không.
+        Trả về False nếu text chỉ là ngày tháng, số, hoặc ký tự đặc biệt.
+        """
+        letter_count = sum(1 for c in text if unicodedata.category(c).startswith('L'))
+        return letter_count >= 5
+
+    def _empty_result(self, text: str, return_probabilities: bool = True) -> dict:
+        """Trả về kết quả rỗng cho text không có nội dung cảm xúc."""
+        result = {
+            'text': text,
+            'emotion': 'Other',
+            'confidence': 0.0,
+            'sentiment_score': 0.0,
+            'intensity': 0.0,
+            'keywords': []
+        }
+        if return_probabilities:
+            result['probabilities'] = {name: 0.0 for name in self.emotion_labels.values()}
+        return result
+
     def predict(self, text, return_probabilities=True, other_threshold=0.0):
         """
         Predict emotion for a single text
@@ -91,6 +113,10 @@ class EmotionPredictor:
         Returns:
             dict: Prediction results
         """
+        # Guard: skip non-meaningful text (dates, numbers, etc.)
+        if not self._is_meaningful_text(text):
+            return self._empty_result(text, return_probabilities)
+
         # Preprocess text
         processed_text = self.preprocess_text(text)
 
