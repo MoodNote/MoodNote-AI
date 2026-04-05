@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
     # Create model
     model = PhoBERTEmotionClassifier(
-        model_name="vinai/phobert-base",
+        model_name="vinai/phobert-base-v2",
         num_labels=7
     )
 

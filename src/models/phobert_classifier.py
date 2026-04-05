@@ -58,7 +58,7 @@ class PhoBERTEmotionClassifier(nn.Module):
     Architecture:
         PhoBERT Base/Large
             ↓
-        [CLS] token representation
+        Mean pooling over non-padding tokens
             ↓
         Dropout
             ↓
@@ -71,7 +71,7 @@ class PhoBERTEmotionClassifier(nn.Module):
 
     def __init__(
         self,
-        model_name="vinai/phobert-base",
+        model_name="vinai/phobert-base-v2",
         num_labels=7,
         dropout=0.1,
         freeze_bert=False,
@@ -97,7 +97,7 @@ class PhoBERTEmotionClassifier(nn.Module):
         self.label_smoothing = label_smoothing
         self.focal_gamma = focal_gamma
 
-        # Load PhoBERT base model (without CLS pooler — we use mean pooling in forward)
+        # Load PhoBERT encoder (without pooler — we use mean pooling in forward)
         _prev_level = hf_logging.get_verbosity()
         hf_logging.set_verbosity_error()
         self.bert = AutoModel.from_pretrained(model_name, add_pooling_layer=False)
@@ -140,7 +140,7 @@ class PhoBERTEmotionClassifier(nn.Module):
             SequenceClassifierOutput with loss (if labels provided) and logits
         """
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        # Mean pooling over non-padding tokens (better than CLS-only for short social media text)
+        # Mean pooling over non-padding tokens (more stable than CLS-only for short text)
         last_hidden = outputs.last_hidden_state
         mask = attention_mask.unsqueeze(-1).float()
         mean_pooled = (last_hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
@@ -240,7 +240,7 @@ if __name__ == "__main__":
     print("Testing PhoBERT model...")
 
     model = PhoBERTEmotionClassifier(
-        model_name="uitnlp/visobert",
+        model_name="vinai/phobert-base-v2",
         num_labels=7,
         dropout=0.1
     )

@@ -117,6 +117,7 @@ python -m src.data.preprocess
 This applies Vietnamese word segmentation (critical for PhoBERT) and saves preprocessed data to `data/processed/`.
 
 **Note:** This step uses `pyvi` for word segmentation. Example:
+
 - Input: "Hôm nay tôi rất vui"
 - Output: "Hôm_nay tôi rất vui"
 
@@ -137,6 +138,7 @@ python scripts/train.py --output-dir custom_checkpoints
 ```
 
 Training will:
+
 - Load preprocessed data
 - Initialize PhoBERT model
 - Train for 5 epochs (default)
@@ -145,6 +147,7 @@ Training will:
 - Generate confusion matrix
 
 **Expected Results:**
+
 - Accuracy: 55-65%
 - F1-Macro: 50-60%
 - F1-Weighted: 55-65%
@@ -156,6 +159,7 @@ python scripts/run_api.py
 ```
 
 The API will be available at:
+
 - **API Endpoint:** http://localhost:8000
 - **Documentation:** http://localhost:8000/docs
 - **Health Check:** http://localhost:8000/health
@@ -176,18 +180,18 @@ Response:
 
 ```json
 {
-  "text": "Hôm nay tôi rất vui và hạnh phúc",
-  "emotion": "Enjoyment",
-  "confidence": 0.92,
-  "probabilities": {
-    "Enjoyment": 0.92,
-    "Sadness": 0.03,
-    "Anger": 0.01,
-    "Fear": 0.01,
-    "Disgust": 0.01,
-    "Surprise": 0.01,
-    "Other": 0.01
-  }
+	"text": "Hôm nay tôi rất vui và hạnh phúc",
+	"emotion": "Enjoyment",
+	"confidence": 0.92,
+	"probabilities": {
+		"Enjoyment": 0.92,
+		"Sadness": 0.03,
+		"Anger": 0.01,
+		"Fear": 0.01,
+		"Disgust": 0.01,
+		"Surprise": 0.01,
+		"Other": 0.01
+	}
 }
 ```
 
@@ -241,56 +245,63 @@ for pred in results['predictions']:
 
 ```yaml
 model:
-  name: "vinai/phobert-base"      # PhoBERT model
-  num_labels: 7                    # Number of emotions
-  max_seq_length: 128              # Max sequence length
-  dropout: 0.1                     # Dropout rate
+    name: "vinai/phobert-base-v2" # PhoBERT model
+    num_labels: 7 # Number of emotions
+    max_seq_length: 128 # Max sequence length
+    dropout: 0.1 # Dropout rate
 
 preprocessing:
-  segmenter: "pyvi"                # Word segmenter
-  lowercase: false
+    segmenter: "pyvi" # Word segmenter
+    lowercase: false
 ```
 
 ### Training Configuration ([configs/training_config.yaml](configs/training_config.yaml))
 
 ```yaml
 training:
-  learning_rate: 3e-5              # Learning rate
-  batch_size: 16                   # Batch size
-  num_epochs: 5                    # Number of epochs
-  warmup_steps: 500                # Warmup steps
-  weight_decay: 0.01               # Weight decay
-  fp16: true                       # Mixed precision
+    learning_rate: 3e-5 # Learning rate
+    batch_size: 16 # Batch size
+    num_epochs: 5 # Number of epochs
+    warmup_steps: 500 # Warmup steps
+    weight_decay: 0.01 # Weight decay
+    fp16: true # Mixed precision
 
 wandb:
-  project: "moodnote-ai"
-  enabled: true
+    project: "moodnote-ai"
+    enabled: true
 ```
 
 ## Dataset
 
 **UIT-VSMEC** (Vietnamese Social Media Emotion Corpus)
+
 - **Source:** Hugging Face (`tridm/UIT-VSMEC`)
 - **Total samples:** 6,927 Vietnamese Facebook posts
 - **Splits:**
-  - Train: 5,550 samples
-  - Validation: 686 samples
-  - Test: 693 samples
+    - Train: 5,550 samples
+    - Validation: 686 samples
+    - Test: 693 samples
 - **Labels:** 7 emotion classes
 
 ## Model Architecture
 
 ```
-PhoBERT Base (vinai/phobert-base)
+PhoBERT Base v2 (vinai/phobert-base-v2)
+  ↓
+Mean pooling over non-padding tokens (768-dim)
     ↓
-[CLS] token representation (768-dim)
+Dropout
     ↓
-Dropout (0.1)
-    ↓
-Linear Layer (768 → 7)
+Linear (768 → 384)
+  ↓
+GELU + LayerNorm + Dropout
+  ↓
+Linear (384 → 7)
     ↓
 Softmax
 ```
+
+This project does not use the raw `[CLS]` vector as the only representation. It pools token embeddings with the attention mask, then applies a 2-layer classification head.
 
 **Parameters:** ~135M (PhoBERT-base)
 
@@ -359,7 +370,7 @@ Reduce batch size in [configs/training_config.yaml](configs/training_config.yaml
 
 ```yaml
 training:
-  batch_size: 8  # Reduce from 16
+    batch_size: 8 # Reduce from 16
 ```
 
 ### Issue: "Dataset not found"
