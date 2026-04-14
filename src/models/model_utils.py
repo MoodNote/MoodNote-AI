@@ -1,6 +1,7 @@
 """
 Model utilities for loading, saving, and managing models
 """
+import os
 import torch
 from pathlib import Path
 from transformers import AutoTokenizer
@@ -66,14 +67,37 @@ def load_model(load_dir, device='cpu'):
     model_path = load_path / "model.pt"
     checkpoint = torch.load(model_path, map_location=device)
 
-    # Create model
-    model = PhoBERTEmotionClassifier(
-        model_name=checkpoint['model_name'],
-        num_labels=checkpoint['num_labels'],
-        dropout=checkpoint.get('dropout', 0.1),
-        label_smoothing=checkpoint.get('label_smoothing', 0.0),
-        focal_gamma=checkpoint.get('focal_gamma', 0.0)
-    )
+    # Create model. Prefer offline/local cache to avoid unnecessary HF Hub calls at API startup.
+    model_name = checkpoint['model_name']
+    model_kwargs = {
+        'model_name': model_name,
+        'num_labels': checkpoint['num_labels'],
+        'dropout': checkpoint.get('dropout', 0.1),
+        'label_smoothing': checkpoint.get('label_smoothing', 0.0),
+        'focal_gamma': checkpoint.get('focal_gamma', 0.0)
+    }
+
+    allow_hf_fallback = os.getenv("MOODNOTE_ALLOW_HF_FALLBACK", "0") == "1"
+    try:
+        model = PhoBERTEmotionClassifier(
+            **model_kwargs,
+            local_files_only=True
+        )
+    except Exception as exc:
+        if not allow_hf_fallback:
+            raise RuntimeError(
+                f"Local/cached files for {model_name} are unavailable ({exc}). "
+                "Set MOODNOTE_ALLOW_HF_FALLBACK=1 to allow downloading from Hugging Face Hub."
+            ) from exc
+
+        logger.warning(
+            f"Local/cached files for {model_name} are unavailable ({exc}). "
+            "Falling back to Hugging Face Hub because MOODNOTE_ALLOW_HF_FALLBACK=1."
+        )
+        model = PhoBERTEmotionClassifier(
+            **model_kwargs,
+            local_files_only=False
+        )
 
     # Load state dict — strict=False để tương thích checkpoint cũ có bert.pooler.*
     # (pooler bị loại khỏi model vì dùng mean pooling, không phải CLS pooling)
@@ -88,7 +112,7 @@ def load_model(load_dir, device='cpu'):
     model.eval()
 
     # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(load_path)
+    tokenizer = AutoTokenizer.from_pretrained(load_path, local_files_only=True)
 
     logger.info(f"Model loaded from {load_dir}")
     return model, tokenizer

@@ -77,7 +77,8 @@ class PhoBERTEmotionClassifier(nn.Module):
         freeze_bert=False,
         class_weights=None,
         label_smoothing=0.0,
-        focal_gamma=2.0
+        focal_gamma=2.0,
+        local_files_only=False
     ):
         """
         Initialize PhoBERT classifier
@@ -89,6 +90,7 @@ class PhoBERTEmotionClassifier(nn.Module):
             freeze_bert: Whether to freeze BERT parameters
             label_smoothing: Label smoothing factor (set 0.0 to disable)
             focal_gamma: Gamma for Focal Loss (set 0.0 to use CrossEntropyLoss)
+            local_files_only: Only use local/cached model files, do not query HF Hub
         """
         super(PhoBERTEmotionClassifier, self).__init__()
 
@@ -100,11 +102,15 @@ class PhoBERTEmotionClassifier(nn.Module):
         # Load PhoBERT encoder (without pooler — we use mean pooling in forward)
         _prev_level = hf_logging.get_verbosity()
         hf_logging.set_verbosity_error()
-        self.bert = AutoModel.from_pretrained(model_name, add_pooling_layer=False)
+        self.bert = AutoModel.from_pretrained(
+            model_name,
+            add_pooling_layer=False,
+            local_files_only=local_files_only
+        )
         hf_logging.set_verbosity(_prev_level)
 
         # Get hidden size from config (768 for base, 1024 for large)
-        config = AutoConfig.from_pretrained(model_name)
+        config = AutoConfig.from_pretrained(model_name, local_files_only=local_files_only)
         self.hidden_size = config.hidden_size
 
         # Input dropout

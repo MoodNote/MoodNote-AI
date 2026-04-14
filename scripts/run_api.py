@@ -1,6 +1,7 @@
 """
 Script to run the FastAPI server
 """
+import os
 import sys
 from pathlib import Path
 
@@ -47,6 +48,11 @@ def parse_args():
 def main():
     """Main function to run API server"""
     args = parse_args()
+
+    # API inference should run from local artifacts only; avoid HF Hub network checks.
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+    os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 
     # Try to load API config, fall back to defaults
     try:

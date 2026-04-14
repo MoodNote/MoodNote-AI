@@ -264,6 +264,7 @@ class EmotionPredictor:
             raise ValueError("Văn bản nhật ký không được rỗng")
 
         sentences = self._split_sentences(text, min_length=min_sentence_length)
+        sentences = [s for s in sentences if self._is_meaningful_text(s)]
         if not sentences:
             raise ValueError("Không tìm thấy câu hợp lệ trong đoạn nhật ký")
 
