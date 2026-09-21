@@ -5,8 +5,9 @@ Label meanings are anchored with short Vietnamese descriptions of the 7 UIT-VSME
 VSMEC sentences are deliberately NOT used as few-shot examples: they are social-media posts,
 not diary entries, and the VSMEC test set must stay unseen by the generators.
 
-Prompt revisions after a failed QA round get a new template id (diary_v2, ...); old
-templates stay here so every generated row can be traced back to the exact prompt.
+Every prompt revision (after a prompt trial or a failed QA round) gets a new template id and
+old templates are never edited in place, so each generated row, which records its
+template_id, can be traced back to the exact prompt and label descriptions.
 """
 
 import json
@@ -15,7 +16,7 @@ import re
 from ...utils.emotion_constants import DEFAULT_EMOTION_LABELS, find_label_index_by_name
 
 # (Vietnamese name, meaning) per label; keys match DEFAULT_EMOTION_LABELS values.
-LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {
+_DESCRIPTIONS_V1: dict[str, tuple[str, str]] = {
     "Enjoyment": ("vui vẻ", "niềm vui, hạnh phúc, hài lòng, thích thú, biết ơn hoặc tự hào"),
     "Sadness": ("buồn bã", "nỗi buồn, thất vọng, cô đơn, tiếc nuối, tủi thân hoặc chán nản"),
     "Anger": ("tức giận", "giận dữ, bực bội, cáu gắt hoặc ấm ức vì bị đối xử bất công"),
@@ -27,11 +28,27 @@ LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {
         "không thể hiện rõ cảm xúc nào trong 6 cảm xúc còn lại, chỉ kể lại sự việc bình thường",
     ),
 }
-assert set(LABEL_DESCRIPTIONS) == set(DEFAULT_EMOTION_LABELS.values())
 
-# template id -> (system prompt, user prompt with {label_vi} {description} {van_phong}
-# {do_dai} {ngu_canh} placeholders)
-GENERATION_TEMPLATES: dict[str, tuple[str, str]] = {
+# v2, after the v1 prompt trial: Disgust read as annoyance and Other drifted into Enjoyment,
+# so both get sharper boundaries; "biết ơn" is dropped from Enjoyment (overused in the trial).
+_DESCRIPTIONS_V2: dict[str, tuple[str, str]] = {
+    **_DESCRIPTIONS_V1,
+    "Enjoyment": ("vui vẻ", "niềm vui, hạnh phúc, hài lòng, thích thú hoặc tự hào"),
+    "Disgust": (
+        "ghê tởm",
+        "cảm giác ghê tởm, kinh tởm, buồn nôn hoặc khinh bỉ trước một hành vi, sự việc bẩn thỉu "
+        "hay đồi bại, khác với bực bội hay tức giận",
+    ),
+    "Other": (
+        "trung tính",
+        "không vui cũng không buồn, không thể hiện rõ cảm xúc nào trong 6 cảm xúc còn lại; giọng "
+        "kể trung tính về sự việc bình thường",
+    ),
+}
+
+# template id -> (system prompt, user prompt, label descriptions). The user prompt takes
+# {label_vi} {description} {van_phong} {do_dai} {ngu_canh} placeholders.
+GENERATION_TEMPLATES: dict[str, tuple[str, str, dict[str, tuple[str, str]]]] = {
     "diary_v1": (
         "Bạn là một người Việt Nam đang viết nhật ký cá nhân của chính mình.",
         "Hãy viết một đoạn nhật ký bằng tiếng Việt.\n"
@@ -45,8 +62,37 @@ GENERATION_TEMPLATES: dict[str, tuple[str, str]] = {
         "- Độ dài: {do_dai}.\n"
         "- Ngữ cảnh: {ngu_canh}.\n"
         "- Chỉ trả về nội dung đoạn nhật ký, không tiêu đề, không giải thích hay bình luận thêm.",
+        _DESCRIPTIONS_V1,
+    ),
+    # v1 trial: Llama mixed in English/Chinese and ignored the style/length axes; some axis
+    # combinations (e.g. Anger x "thành công nhỏ") pulled the text off its label; both models
+    # named the emotion outright. v2 asks for Vietnamese only, a concrete situation in the
+    # context that fits the emotion, the emotion shown rather than named, and pronouns/wording
+    # matching the style.
+    "diary_v2": (
+        "Bạn là một người Việt Nam đang viết nhật ký cá nhân của chính mình.",
+        "Hãy viết một đoạn nhật ký bằng tiếng Việt.\n"
+        "\n"
+        "Yêu cầu:\n"
+        "- Viết ở ngôi thứ nhất, giọng văn nhật ký cá nhân đời thường, như đang viết cho chính "
+        "mình đọc. Đây KHÔNG phải bài đăng mạng xã hội: không hashtag, không emoji, không nhắn "
+        "gửi người đọc, không kết thúc bằng lời chào như viết thư.\n"
+        "- Chỉ dùng tiếng Việt, không chèn từ hay câu tiếng Anh, tiếng Trung.\n"
+        "- Cảm xúc chủ đạo: {label_vi} ({description}).\n"
+        '- Hãy nghĩ ra một tình huống cụ thể thuộc ngữ cảnh "{ngu_canh}" phù hợp với cảm xúc '
+        "chủ đạo trên.\n"
+        "- Thể hiện cảm xúc qua sự việc, suy nghĩ và phản ứng của người viết; hạn chế gọi thẳng "
+        "tên cảm xúc.\n"
+        "- Văn phong: {van_phong}. Cách xưng hô và dùng từ phải khớp với văn phong này.\n"
+        "- Độ dài: {do_dai}.\n"
+        "- Chỉ trả về nội dung đoạn nhật ký, không tiêu đề, không giải thích hay bình luận thêm.",
+        _DESCRIPTIONS_V2,
     ),
 }
+assert all(
+    set(descriptions) == set(DEFAULT_EMOTION_LABELS.values())
+    for _, _, descriptions in GENERATION_TEMPLATES.values()
+)
 
 AUDIT_SYSTEM_PROMPT = "Bạn là người kiểm định dữ liệu cảm xúc tiếng Việt."
 
@@ -58,7 +104,7 @@ AUDIT_USER_TEMPLATE = (
     "1. Cảm xúc chủ đạo của đoạn nhật ký là nhãn nào trong 7 nhãn sau?\n"
     "{label_list}\n"
     "2. Đoạn nhật ký có tự nhiên như do người thật viết không? Trả lời false nếu văn phong "
-    "rập khuôn, máy móc hoặc thiếu tự nhiên.\n"
+    "rập khuôn, máy móc, thiếu tự nhiên hoặc lẫn từ, câu tiếng nước ngoài.\n"
     "\n"
     "Chỉ trả lời đúng một dòng JSON, không giải thích:\n"
     '{{"label": "<một trong 7 nhãn>", "natural": true hoặc false}}'
@@ -83,8 +129,8 @@ def build_generation_messages(
     Returns:
         Chat messages (system + user)
     """
-    system, user = GENERATION_TEMPLATES[template_id]
-    label_vi, description = LABEL_DESCRIPTIONS[label]
+    system, user, descriptions = GENERATION_TEMPLATES[template_id]
+    label_vi, description = descriptions[label]
     content = user.format(
         label_vi=label_vi,
         description=description,
@@ -95,18 +141,21 @@ def build_generation_messages(
     return [{"role": "system", "content": system}, {"role": "user", "content": content}]
 
 
-def build_audit_messages(text: str) -> list[dict[str, str]]:
+def build_audit_messages(text: str, template_id: str) -> list[dict[str, str]]:
     """
     Build the chat messages asking an auditor LLM for the emotion label and naturalness.
 
     Args:
         text: Diary entry to audit
+        template_id: Template the entry was generated with; the auditor judges it against the
+            same label descriptions the generator was given
 
     Returns:
         Chat messages (system + user)
     """
+    descriptions = GENERATION_TEMPLATES[template_id][2]
     label_list = "\n".join(
-        f"- {name}: {vi} ({description})" for name, (vi, description) in LABEL_DESCRIPTIONS.items()
+        f"- {name}: {vi} ({description})" for name, (vi, description) in descriptions.items()
     )
     content = AUDIT_USER_TEMPLATE.format(text=text, label_list=label_list)
     return [

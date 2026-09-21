@@ -5,7 +5,10 @@ Filter the raw synthetic pool: drop empty/truncated rows, duplicates, and rows l
 
 Reads <data-dir>/raw/*.jsonl, writes <data-dir>/filtered/pool.jsonl (kept rows) and
 dropped.jsonl (with `drop_reason`). Checks run in order and each row gets the first reason
-that hits it: empty -> truncated -> exact_dup -> near_dup -> leakage.
+that hits it: empty -> truncated -> foreign_script -> exact_dup -> near_dup -> leakage.
+`foreign_script` catches Chinese characters the generators sometimes slip in; English is not
+filtered here (loanwords like "Facebook" are normal Vietnamese) and is left to the prompt and
+the cross-LLM audit.
 """
 
 import argparse
@@ -113,6 +116,9 @@ def filter_pool(
     checks: list[tuple[str, Callable[[pd.DataFrame], np.ndarray]]] = [
         ("empty", lambda d: (d["text"].str.strip() == "").to_numpy()),
         ("truncated", lambda d: d["truncated"].to_numpy(dtype=bool)),
+        # Not a raw string: Python turns \u escapes into the characters themselves, which
+        # pyarrow's RE2 engine (pandas 3 string dtype) accepts but cannot parse as escapes.
+        ("foreign_script", lambda d: d["text"].str.contains("[\u3400-\u9fff]").to_numpy()),
         (
             "exact_dup",
             lambda d: d["text"].str.lower().str.split().str.join(" ").duplicated().to_numpy(),

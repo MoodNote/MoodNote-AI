@@ -20,10 +20,13 @@ generation:
         test: 0.15
     load_in_4bit: true # 8B fp16 không vừa T4 16GB
     batch_size: 16
-    max_new_tokens: 300
-    temperature: 0.9
-    top_p: 0.95
-    repetition_penalty: 1.15
+    # Sau prompt trial diary_v1 (2026-09-21): 0.9 / 0.95 / 1.15 làm Llama lẫn tiếng Anh/Trung.
+    # HF repetition_penalty phạt cả token trong prompt, mà tiếng Việt lặp âm tiết dày ("tôi",
+    # "không") nên bị đẩy sang token hiếm -> tắt (1.0); trial thấy lặp vòng thì thử 1.05.
+    max_new_tokens: 400 # bản "dài" tới ~180 từ, 300 token sát ngưỡng cắt
+    temperature: 0.8
+    top_p: 0.9
+    repetition_penalty: 1.0
     log_every_n_samples: 25
 
 # 3 trục đa dạng hóa đúng như thuyết minh nêu (văn phong, độ dài, ngữ cảnh). Biến thể
@@ -37,10 +40,10 @@ diversity_axes:
         - 'thân mật, xưng hô suồng sã như nói chuyện với bạn thân'
         - 'hài hước, tự trào'
         - 'nghiêm túc, trầm tư'
-    do_dai:
-        - 'ngắn (2-3 câu)'
-        - 'vừa (4-6 câu)'
-        - 'dài (7-10 câu)'
+    do_dai: # số từ ghi thêm từ diary_v2: Llama bỏ qua số câu ở trial v1
+        - 'ngắn (2-3 câu, khoảng 30-60 từ)'
+        - 'vừa (4-6 câu, khoảng 60-110 từ)'
+        - 'dài (7-10 câu, khoảng 110-180 từ)'
     ngu_canh:
         - 'học tập, thi cử'
         - 'gia đình'
@@ -64,4 +67,4 @@ leakage_guard:
     partial_match_min_words: 8
 
 prompt:
-    instruction_template_id: 'diary_v1'
+    instruction_template_id: 'diary_v2'

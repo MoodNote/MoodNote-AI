@@ -83,7 +83,10 @@ def run_cross_llm_audit(
     for start in range(0, len(todo), batch_size):
         batch = todo.iloc[start : start + batch_size]
         outputs = client.generate(
-            [build_audit_messages(text) for text in batch["text"]],
+            [
+                build_audit_messages(text, template_id)
+                for text, template_id in zip(batch["text"], batch["template_id"], strict=True)
+            ],
             max_new_tokens=AUDIT_MAX_NEW_TOKENS,
         )
         rows = []
