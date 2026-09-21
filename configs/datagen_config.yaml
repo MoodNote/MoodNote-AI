@@ -43,10 +43,12 @@ diversity_axes:
         - 'thân mật, xưng hô suồng sã như nói chuyện với bạn thân'
         - 'hài hước, tự trào'
         - 'nghiêm túc, trầm tư'
-    do_dai: # số từ ghi thêm từ diary_v2: Llama bỏ qua số câu ở trial v1
-        - 'ngắn (2-3 câu, khoảng 30-60 từ)'
-        - 'vừa (4-6 câu, khoảng 60-110 từ)'
-        - 'dài (7-10 câu, khoảng 110-180 từ)'
+    # Độ dài ghi thêm số lượng từ diary_v2 (Llama bỏ qua số câu ở trial v1). Trial v3: "từ" bị
+    # hiểu 2 kiểu (Llama đếm từ ghép, Qwen đếm âm tiết) -> dùng "chữ" (= âm tiết, cách nói quen).
+    do_dai:
+        - 'ngắn (2-3 câu, khoảng 30-60 chữ)'
+        - 'vừa (4-6 câu, khoảng 60-110 chữ)'
+        - 'dài (7-10 câu, khoảng 110-180 chữ)'
     ngu_canh:
         - 'học tập, thi cử'
         - 'gia đình'
