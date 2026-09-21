@@ -161,6 +161,113 @@ class APIConfig(_Strict):
     preprocessing: ApiPreprocessingParams
 
 
+# ------------------------------------------------------------------------- datagen_config.yaml
+
+
+class LLMModelParams(_Strict):
+    display_name: str
+    hf_model_id: str
+
+
+class SplitRatios(_Strict):
+    train: float
+    validation: float
+    test: float
+
+
+class GenerationParams(_Strict):
+    target_total_samples: int
+    target_per_label: int
+    split_ratios: SplitRatios
+    load_in_4bit: bool
+    batch_size: int
+    max_new_tokens: int
+    temperature: float
+    top_p: float
+    repetition_penalty: float
+    log_every_n_samples: int
+
+
+class DiversityAxes(_Strict):
+    van_phong: list[str]
+    do_dai: list[str]
+    ngu_canh: list[str]
+
+
+class DedupParams(_Strict):
+    near_dup_threshold: float
+
+
+class LeakageGuardParams(_Strict):
+    near_dup_threshold: float
+    compare_splits: list[Literal["train", "validation", "test"]]
+    partial_match_min_words: int
+
+
+class PromptParams(_Strict):
+    instruction_template_id: str
+
+
+class DatagenConfig(_Strict):
+    seed: int
+    models: dict[str, LLMModelParams]
+    generation: GenerationParams
+    diversity_axes: DiversityAxes
+    dedup: DedupParams
+    leakage_guard: LeakageGuardParams
+    prompt: PromptParams
+
+    @model_validator(mode="after")
+    def _targets_are_consistent(self) -> DatagenConfig:
+        # Cross-LLM audit swaps the two generators (Qwen checks Llama and vice versa).
+        if len(self.models) != 2:
+            raise ValueError(f"models must list exactly 2 LLMs, got {sorted(self.models)}")
+        gen = self.generation
+        expected = gen.target_per_label * len(DEFAULT_EMOTION_LABELS)
+        if gen.target_total_samples != expected:
+            raise ValueError(
+                f"target_total_samples is {gen.target_total_samples} but target_per_label x "
+                f"{len(DEFAULT_EMOTION_LABELS)} labels = {expected}"
+            )
+        ratios = gen.split_ratios
+        if abs(ratios.train + ratios.validation + ratios.test - 1.0) > 1e-9:
+            raise ValueError(f"split_ratios must sum to 1, got {ratios}")
+        return self
+
+
+# ------------------------------------------------------------------------------ qa_config.yaml
+
+
+class ManualAuditParams(_Strict):
+    sample_size: int
+    seed: int
+    raters: list[str]
+    min_cohens_kappa: float
+
+    @model_validator(mode="after")
+    def _two_raters(self) -> ManualAuditParams:
+        if len(self.raters) != 2:
+            raise ValueError(f"Cohen's Kappa needs exactly 2 raters, got {self.raters}")
+        return self
+
+
+class CrossLLMAuditParams(_Strict):
+    audit_fraction: float
+    seed: int
+    max_unnatural_rate: float
+    max_label_mismatch_rate: float
+
+
+class AcceptanceParams(_Strict):
+    drop_cross_llm_flagged: bool
+
+
+class QAConfig(_Strict):
+    manual_audit: ManualAuditParams
+    cross_llm_audit: CrossLLMAuditParams
+    acceptance: AcceptanceParams
+
+
 # ------------------------------------------------------------------------------------ loading
 
 
