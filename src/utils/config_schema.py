@@ -167,6 +167,7 @@ class APIConfig(_Strict):
 class LLMModelParams(_Strict):
     display_name: str
     hf_model_id: str
+    exclude_labels: list[str]
 
 
 class SplitRatios(_Strict):
@@ -232,7 +233,21 @@ class DatagenConfig(_Strict):
         ratios = gen.split_ratios
         if abs(ratios.train + ratios.validation + ratios.test - 1.0) > 1e-9:
             raise ValueError(f"split_ratios must sum to 1, got {ratios}")
+        labels = set(DEFAULT_EMOTION_LABELS.values())
+        for key, model in self.models.items():
+            unknown = set(model.exclude_labels) - labels
+            if unknown:
+                raise ValueError(
+                    f"models.{key}.exclude_labels has unknown labels {sorted(unknown)}"
+                )
+        for label in labels:
+            if not self.generators_of(label):
+                raise ValueError(f"label {label!r} is excluded by every model")
         return self
+
+    def generators_of(self, label: str) -> list[str]:
+        """Model keys that generate `label`; they split target_per_label evenly."""
+        return [key for key, model in self.models.items() if label not in model.exclude_labels]
 
 
 # ------------------------------------------------------------------------------ qa_config.yaml

@@ -65,7 +65,8 @@ def generate(
 
     Args:
         model_key: Key under `models` in the datagen config ("llama" or "qwen")
-        per_label: Rows per label for this model (default: target_per_label / number of models)
+        per_label: Rows per label for this model (default: target_per_label split evenly
+            among the models that generate the label; labels in exclude_labels are skipped)
         data_dir: Synthetic data root; output goes to <data_dir>/raw/<model_key>.jsonl
         config_path: Path to datagen config YAML
     """
@@ -75,7 +76,11 @@ def generate(
     model_cfg = cfg.models[model_key]
     gen = cfg.generation
     template_id = cfg.prompt.instruction_template_id
-    per_label = per_label or gen.target_per_label // len(cfg.models)
+    targets = {
+        label: per_label or gen.target_per_label // len(cfg.generators_of(label))
+        for label in DEFAULT_EMOTION_LABELS.values()
+        if label not in model_cfg.exclude_labels
+    }
 
     output_file = Path(data_dir) / "raw" / f"{model_key}.jsonl"
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -87,9 +92,9 @@ def generate(
             "Move the previous round's data/synthetic/ away before generating a new round."
         )
     done = Counter(row["label"] for row in existing)
-    labels = [label for label in DEFAULT_EMOTION_LABELS.values() if done[label] < per_label]
+    labels = [label for label, target in targets.items() if done[label] < target]
     if not labels:
-        logger.info(f"{output_file}: all labels already have {per_label} rows, nothing to do")
+        logger.info(f"{output_file}: every label already has its target {targets}, nothing to do")
         return
 
     logger.info(f"Loading {model_cfg.hf_model_id} (4-bit: {gen.load_in_4bit})")
@@ -101,8 +106,9 @@ def generate(
         label_combos = combos.copy()
         random.Random(f"{cfg.seed}-{model_key}-{label}").shuffle(label_combos)
 
-        for start in range(done[label], per_label, gen.batch_size):
-            end = min(start + gen.batch_size, per_label)
+        target = targets[label]
+        for start in range(done[label], target, gen.batch_size):
+            end = min(start + gen.batch_size, target)
             picked = [label_combos[i % len(label_combos)] for i in range(start, end)]
             outputs = client.generate(
                 [build_generation_messages(template_id, label, *combo) for combo in picked],
@@ -135,8 +141,8 @@ def generate(
             write_jsonl(output_file, rows, append=True)
 
             n = gen.log_every_n_samples
-            if end // n > start // n or end == per_label:
-                logger.info(f"{model_key}/{label}: {end}/{per_label}")
+            if end // n > start // n or end == target:
+                logger.info(f"{model_key}/{label}: {end}/{target}")
 
     logger.info(f"Generation complete -> {output_file}")
 
@@ -144,7 +150,11 @@ def generate(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", required=True, help="Key under `models` (llama / qwen)")
-    parser.add_argument("--per-label", type=int, help="Rows per label (default: config target / 2)")
+    parser.add_argument(
+        "--per-label",
+        type=int,
+        help="Rows per label (default: config target split among the models generating it)",
+    )
     parser.add_argument("--data-dir", default="data/synthetic")
     parser.add_argument("--config", default="configs/datagen_config.yaml")
     args = parser.parse_args()

@@ -2,7 +2,8 @@ seed: 42
 
 # Cả 2 model chạy trên Colab T4 qua HF transformers, cả thử prompt (quy mô nhỏ) lẫn sinh
 # hàng loạt. OpenRouter đã gỡ bản free Llama 8B (2026-09-21) nên bỏ khỏi thiết kế.
-# Mỗi model sinh target_per_label / 2 mẫu mỗi nhãn; cross-LLM audit hoán đổi 2 model.
+# target_per_label của mỗi nhãn chia đều cho các model sinh nhãn đó (exclude_labels loại bớt);
+# cross-LLM audit hoán đổi 2 model.
 models:
     # Llama 3.1 thay Llama 3 gốc (2026-09-21): trích dẫn [9] của thuyết minh ("The Llama 3 Herd
     # of Models", arXiv 2407.21783) là bài công bố Llama 3.1; bản 3 gốc bỏ qua trục độ dài/văn
@@ -10,9 +11,13 @@ models:
     llama:
         display_name: 'Llama-3.1-8B-Instruct'
         hf_model_id: 'meta-llama/Llama-3.1-8B-Instruct' # gated: accept license Llama 3.1 trên HF + HF_TOKEN
+        # Trial v3 (5 mẫu/nhãn): Disgust của Llama ra hài hước/chê bai, đúng ~1/7 qua 2 vòng
+        # -> Qwen (5/5 đúng) sinh toàn bộ 400 mẫu Disgust.
+        exclude_labels: ['Disgust']
     qwen:
         display_name: 'Qwen3-8B'
         hf_model_id: 'Qwen/Qwen3-8B'
+        exclude_labels: []
 
 generation:
     target_total_samples: 2800
