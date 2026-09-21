@@ -1,5 +1,5 @@
 training:
-    learning_rate: 2e-5 # standard base-size RoBERTa fine-tuning LR
+    learning_rate: 2.0e-5 # standard base-size RoBERTa fine-tuning LR (dấu chấm bắt buộc: PyYAML parse 2e-5 thành str)
     batch_size: 16 # T4 16GB safe với PhoBERT-base-v2 + R-Drop
     gradient_accumulation_steps: 2 # effective batch = 16 * 2 = 32
     num_epochs: 12 # buffer để real_only hội tụ (ở 6 epoch val f1_macro còn đang tăng); early stopping tự cắt combined/synthetic_only
@@ -16,7 +16,7 @@ training:
 optimizer:
     type: 'AdamW'
     betas: [0.9, 0.999]
-    eps: 1e-8
+    eps: 1.0e-8
 
 scheduler:
     type: 'cosine'

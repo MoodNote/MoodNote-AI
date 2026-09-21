@@ -1,0 +1,5 @@
+# Lightweight dependency set for CI linting.
+# Test tooling (pytest + the libs the tests import) was dropped on request;
+# re-add pytest==9.0.2, pyyaml, pydantic, numpy, scikit-learn, yake when tests come back.
+
+ruff==0.15.15
