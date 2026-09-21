@@ -46,6 +46,17 @@ _DESCRIPTIONS_V2: dict[str, tuple[str, str]] = {
     ),
 }
 
+# v3, after the v2 trial: both models copied "không vui cũng không buồn" from the Other
+# description into their Other entries, a lexical shortcut PhoBERT would learn instead of the
+# label. Other goes back to a v1-style description without a quotable emotion phrase.
+_DESCRIPTIONS_V3: dict[str, tuple[str, str]] = {
+    **_DESCRIPTIONS_V2,
+    "Other": (
+        "trung tính",
+        "không thể hiện rõ cảm xúc nào trong 6 cảm xúc còn lại, chỉ kể lại sự việc thường ngày",
+    ),
+}
+
 # template id -> (system prompt, user prompt, label descriptions). The user prompt takes
 # {label_vi} {description} {van_phong} {do_dai} {ngu_canh} placeholders.
 GENERATION_TEMPLATES: dict[str, tuple[str, str, dict[str, tuple[str, str]]]] = {
@@ -87,6 +98,30 @@ GENERATION_TEMPLATES: dict[str, tuple[str, str, dict[str, tuple[str, str]]]] = {
         "- Độ dài: {do_dai}.\n"
         "- Chỉ trả về nội dung đoạn nhật ký, không tiêu đề, không giải thích hay bình luận thêm.",
         _DESCRIPTIONS_V2,
+    ),
+    # v2 trial: Qwen followed every axis; Llama 3 still named the emotion and copied words from
+    # the label description (e.g. the Anger synonyms verbatim). v3 also forbids summarising
+    # one's own feeling and reusing the description's wording. The same round switched the
+    # generator to Llama 3.1 and neutralised two emotion-laden contexts (datagen_config.yaml).
+    "diary_v3": (
+        "Bạn là một người Việt Nam đang viết nhật ký cá nhân của chính mình.",
+        "Hãy viết một đoạn nhật ký bằng tiếng Việt.\n"
+        "\n"
+        "Yêu cầu:\n"
+        "- Viết ở ngôi thứ nhất, giọng văn nhật ký cá nhân đời thường, như đang viết cho chính "
+        "mình đọc. Đây KHÔNG phải bài đăng mạng xã hội: không hashtag, không emoji, không nhắn "
+        "gửi người đọc, không kết thúc bằng lời chào như viết thư.\n"
+        "- Chỉ dùng tiếng Việt, không chèn từ hay câu tiếng Anh, tiếng Trung.\n"
+        "- Cảm xúc chủ đạo: {label_vi} ({description}).\n"
+        '- Hãy nghĩ ra một tình huống cụ thể thuộc ngữ cảnh "{ngu_canh}" phù hợp với cảm xúc '
+        "chủ đạo trên.\n"
+        "- Thể hiện cảm xúc qua sự việc, suy nghĩ và phản ứng của người viết; hạn chế gọi thẳng "
+        "tên cảm xúc hoặc tự tổng kết cảm xúc của mình, và không lặp lại nguyên văn các từ trong "
+        "phần mô tả cảm xúc ở trên.\n"
+        "- Văn phong: {van_phong}. Cách xưng hô và dùng từ phải khớp với văn phong này.\n"
+        "- Độ dài: {do_dai}.\n"
+        "- Chỉ trả về nội dung đoạn nhật ký, không tiêu đề, không giải thích hay bình luận thêm.",
+        _DESCRIPTIONS_V3,
     ),
 }
 assert all(

@@ -14,7 +14,7 @@ Việc rebuild chia thành 7 phase tuần tự. **Phase 1-2 đã xong**: khung d
 
 1. ✅ Scaffold dự án + core utils (config, logger, emotion constants, metrics) + CI.
 2. ✅ Dữ liệu thật (UIT-VSMEC): tải + tiền xử lý, giữ nguyên split train/validation/test gốc.
-3. 🔧 Dữ liệu giả lập bằng LLM (Llama-3-8B-Instruct, Qwen3-8B) + Human-in-the-loop QA.
+3. 🔧 Dữ liệu giả lập bằng LLM (Llama-3.1-8B-Instruct, Qwen3-8B) + Human-in-the-loop QA.
 4. Huấn luyện PhoBERT + ablation 3 kịch bản (real-only/synthetic-only/combined).
 5. Serving layer (inference/API), sửa công thức tính intensity.
 6. Mở rộng testing & CI (models/training/inference thật).

@@ -4,9 +4,12 @@ seed: 42
 # hàng loạt. OpenRouter đã gỡ bản free Llama 8B (2026-09-21) nên bỏ khỏi thiết kế.
 # Mỗi model sinh target_per_label / 2 mẫu mỗi nhãn; cross-LLM audit hoán đổi 2 model.
 models:
+    # Llama 3.1 thay Llama 3 gốc (2026-09-21): trích dẫn [9] của thuyết minh ("The Llama 3 Herd
+    # of Models", arXiv 2407.21783) là bài công bố Llama 3.1; bản 3 gốc bỏ qua trục độ dài/văn
+    # phong ở prompt trial v1-v2.
     llama:
-        display_name: 'Llama-3-8B-Instruct'
-        hf_model_id: 'meta-llama/Meta-Llama-3-8B-Instruct' # gated: accept license trên HF + HF_TOKEN
+        display_name: 'Llama-3.1-8B-Instruct'
+        hf_model_id: 'meta-llama/Llama-3.1-8B-Instruct' # gated: accept license Llama 3.1 trên HF + HF_TOKEN
     qwen:
         display_name: 'Qwen3-8B'
         hf_model_id: 'Qwen/Qwen3-8B'
@@ -22,11 +25,11 @@ generation:
     batch_size: 16
     # Sau prompt trial diary_v1 (2026-09-21): 0.9 / 0.95 / 1.15 làm Llama lẫn tiếng Anh/Trung.
     # HF repetition_penalty phạt cả token trong prompt, mà tiếng Việt lặp âm tiết dày ("tôi",
-    # "không") nên bị đẩy sang token hiếm -> tắt (1.0); trial thấy lặp vòng thì thử 1.05.
+    # "không") nên bị đẩy sang token hiếm. Trial v2 với 1.0 thì Llama lặp vòng -> 1.05 (nhẹ).
     max_new_tokens: 400 # bản "dài" tới ~180 từ, 300 token sát ngưỡng cắt
     temperature: 0.8
     top_p: 0.9
-    repetition_penalty: 1.0
+    repetition_penalty: 1.05
     log_every_n_samples: 25
 
 # 3 trục đa dạng hóa đúng như thuyết minh nêu (văn phong, độ dài, ngữ cảnh). Biến thể
@@ -51,8 +54,10 @@ diversity_axes:
         - 'công việc, thực tập'
         - 'sức khỏe'
         - 'mạng xã hội'
-        - 'chuyện tình cảm, thất tình'
-        - 'thành công nhỏ trong ngày'
+        # Từ diary_v3: 2 ngữ cảnh sẵn cảm xúc ("thất tình", "thành công nhỏ") kéo lệch nhãn khi
+        # ghép với cảm xúc ngược chiều -> đổi sang trung tính.
+        - 'chuyện tình cảm'
+        - 'chuyện nhỏ trong ngày'
         - 'thời tiết, mùa trong năm'
         - 'tài chính, chi tiêu'
 
@@ -67,4 +72,4 @@ leakage_guard:
     partial_match_min_words: 8
 
 prompt:
-    instruction_template_id: 'diary_v2'
+    instruction_template_id: 'diary_v3'
