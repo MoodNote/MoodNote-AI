@@ -34,9 +34,8 @@ tqdm==4.67.3
 matplotlib==3.10.8
 seaborn==0.13.2
 
-# Keyword extraction & augmentation
+# Keyword extraction
 yake==0.7.3
-deep_translator==1.11.4
 
 # Development (linting, testing)
 ruff==0.15.15

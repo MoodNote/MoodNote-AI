@@ -4,9 +4,10 @@ target-version = "py314"
 extend-exclude = [
     "train_colab.ipynb",
     "notebooks/datagen_colab.ipynb",
-    "data",
-    "models",
-    "logs",
+    # "./" anchors to the project root; a bare "data" would also skip src/data/.
+    "./data",
+    "./models",
+    "./logs",
 ]
 
 [tool.ruff.lint]
