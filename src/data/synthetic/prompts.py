@@ -57,6 +57,34 @@ _DESCRIPTIONS_V3: dict[str, tuple[str, str]] = {
     ),
 }
 
+# v4, after the v3 cross-LLM audit (label mismatch 21.9% against a 15% gate): Other entries
+# slipped in mild pleasure or gloom (Qwen 78% mismatch), Anger entries described being hurt and
+# were read as Sadness, and Surprise/Fear were pulled toward the valence of the event. The four
+# descriptions now state what the emotion is aimed at and where it ends.
+_DESCRIPTIONS_V4: dict[str, tuple[str, str]] = {
+    **_DESCRIPTIONS_V3,
+    "Anger": (
+        "tức giận",
+        "giận dữ, bực bội, cáu gắt hoặc phẫn nộ với người hay việc gây ra điều sai trái, muốn "
+        "phản ứng, lên tiếng hoặc trách móc; khác với buồn hay tủi thân vì bị tổn thương",
+    ),
+    "Fear": (
+        "sợ hãi",
+        "nỗi sợ, lo lắng, bất an hoặc hoảng hốt trước một mối nguy hay điều xấu có thể sắp xảy "
+        "ra; khác với nỗi buồn về điều đã mất",
+    ),
+    "Surprise": (
+        "ngạc nhiên",
+        "sự bất ngờ, ngỡ ngàng, sửng sốt trước điều không lường trước; cảm giác bất ngờ là chính, "
+        "không để niềm vui hay nỗi buồn về sự việc lấn át",
+    ),
+    "Other": (
+        "trung tính",
+        "không thể hiện rõ cảm xúc nào trong 6 cảm xúc còn lại, chỉ kể lại sự việc thường ngày; "
+        "không kèm lời khen chê, cảm nhận dễ chịu hay khó chịu, hay suy ngẫm rút ra bài học",
+    ),
+}
+
 # template id -> (system prompt, user prompt, label descriptions). The user prompt takes
 # {label_vi} {description} {van_phong} {do_dai} {ngu_canh} placeholders.
 GENERATION_TEMPLATES: dict[str, tuple[str, str, dict[str, tuple[str, str]]]] = {
@@ -124,6 +152,12 @@ GENERATION_TEMPLATES: dict[str, tuple[str, str, dict[str, tuple[str, str]]]] = {
         _DESCRIPTIONS_V3,
     ),
 }
+# v4 keeps the v3 wording and only swaps in the v4 label descriptions.
+GENERATION_TEMPLATES["diary_v4"] = (
+    GENERATION_TEMPLATES["diary_v3"][0],
+    GENERATION_TEMPLATES["diary_v3"][1],
+    _DESCRIPTIONS_V4,
+)
 assert all(
     set(descriptions) == set(DEFAULT_EMOTION_LABELS.values())
     for _, _, descriptions in GENERATION_TEMPLATES.values()

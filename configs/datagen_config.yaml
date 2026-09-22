@@ -79,4 +79,6 @@ leakage_guard:
     partial_match_min_words: 8
 
 prompt:
-    instruction_template_id: 'diary_v3'
+    # diary_v3 trượt cross-LLM audit (lệch nhãn 21,9% > 15%, 2026-09-22) -> v4 chỉ sửa mô tả
+    # Anger/Fear/Surprise/Other, giữ nguyên câu chữ prompt, trục đa dạng và prompt auditor.
+    instruction_template_id: 'diary_v4'
