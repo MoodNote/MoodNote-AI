@@ -21,6 +21,10 @@ data/merged/
 data/cache/
 data/real/
 data/ablation/
+# Synthetic: raw generations and the filtered pool are regenerable intermediates; the rater
+# sheets (audit/) and the accepted dataset are research outputs and stay tracked.
+data/synthetic/raw/
+data/synthetic/filtered/
 
 # Models
 models/checkpoints/
