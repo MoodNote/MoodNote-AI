@@ -21,6 +21,7 @@ pandas==3.0.1
 numpy==2.4.3
 scikit-learn==1.8.0
 rapidfuzz==3.14.5
+openpyxl==3.1.5 # rater sheets CSV <-> Excel (src/qa/sheet_convert.py)
 
 # Synthetic data generation on Colab also needs bitsandbytes (4-bit);
 # notebooks/datagen_colab.ipynb installs and pins it there.

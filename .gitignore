@@ -73,3 +73,6 @@ best_model
 *.bat
 Makefile
 
+
+#Text
+*.txt
