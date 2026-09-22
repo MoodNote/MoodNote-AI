@@ -15,7 +15,6 @@ import json
 import random
 import re
 import zlib
-from collections import Counter
 from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from itertools import product
@@ -91,8 +90,15 @@ def generate(
             f"{output_file} holds rows from template(s) {sorted(stale)}, not {template_id!r}. "
             "Move the previous round's data/synthetic/ away before generating a new round."
         )
-    done = Counter(row["label"] for row in existing)
-    labels = [label for label, target in targets.items() if done[label] < target]
+    # Resume by the row indices still missing, not by a row count: a batch lost from the
+    # Drive-mounted file (v3 lost Llama Anger 0096-0127) must be regenerated under its own ids,
+    # not re-issued under the last ids as duplicates.
+    done = {(row["label"], int(row["id"].rsplit("-", 1)[1])) for row in existing}
+    missing = {
+        label: [i for i in range(target) if (label, i) not in done]
+        for label, target in targets.items()
+    }
+    labels = [label for label, indices in missing.items() if indices]
     if not labels:
         logger.info(f"{output_file}: every label already has its target {targets}, nothing to do")
         return
@@ -106,17 +112,17 @@ def generate(
         label_combos = combos.copy()
         random.Random(f"{cfg.seed}-{model_key}-{label}").shuffle(label_combos)
 
-        target = targets[label]
-        for start in range(done[label], target, gen.batch_size):
-            end = min(start + gen.batch_size, target)
-            picked = [label_combos[i % len(label_combos)] for i in range(start, end)]
+        target, todo = targets[label], missing[label]
+        for b in range(0, len(todo), gen.batch_size):
+            batch = todo[b : b + gen.batch_size]
+            picked = [label_combos[i % len(label_combos)] for i in batch]
             outputs = client.generate(
                 [build_generation_messages(template_id, label, *combo) for combo in picked],
                 max_new_tokens=gen.max_new_tokens,
                 temperature=gen.temperature,
                 top_p=gen.top_p,
                 repetition_penalty=gen.repetition_penalty,
-                seed=zlib.crc32(f"{cfg.seed}-{model_key}-{label}-{start}".encode()),
+                seed=zlib.crc32(f"{cfg.seed}-{model_key}-{label}-{batch[0]}".encode()),
             )
 
             created_at = datetime.now(UTC).isoformat(timespec="seconds")
@@ -135,13 +141,14 @@ def generate(
                     "created_at": created_at,
                 }
                 for i, (van_phong, do_dai, ngu_canh), (text, truncated) in zip(
-                    range(start, end), picked, outputs, strict=True
+                    batch, picked, outputs, strict=True
                 )
             ]
             write_jsonl(output_file, rows, append=True)
 
             n = gen.log_every_n_samples
-            if end // n > start // n or end == target:
+            end = target - len(todo) + b + len(batch)
+            if end // n > (end - len(batch)) // n or end == target:
                 logger.info(f"{model_key}/{label}: {end}/{target}")
 
     logger.info(f"Generation complete -> {output_file}")

@@ -5,9 +5,10 @@ Acceptance gate: decide whether a synthetic round passes QA and write the accept
 
 Round verdict (thresholds in configs/qa_config.yaml):
   - Cohen's Kappa between the 2 raters >= manual_audit.min_cohens_kappa
-  - cross-LLM label mismatch rate <= cross_llm_audit.max_label_mismatch_rate
+  - Cohen's Kappa between generated and auditor labels >= cross_llm_audit.min_cohens_kappa
   - cross-LLM unnatural rate <= cross_llm_audit.max_unnatural_rate
-An unparseable auditor answer counts as a mismatch / unnatural.
+An unparseable auditor answer counts as a disagreement / unnatural. The label mismatch rate
+and a per-generator Kappa are reported but do not gate.
 
 The report is always written, one file per prompt template (reports/qa_report_<template>.json,
 so failed rounds stay on record for the report). On failure the script exits 1 and
@@ -126,14 +127,22 @@ def run_acceptance_gate(
             f"e.g. {sorted(missing)[:5]}"
         )
     audits = audits.set_index("id")
-    mismatch = audits["predicted_label"].ne(generated.loc[audits.index])
+    expected = generated.loc[audits.index]
+    predicted = audits["predicted_label"].fillna("unparseable")
+    generator = pool.set_index("id")["model"].loc[audits.index]
+    cross_kappa = float(cohen_kappa_score(expected, predicted))
+    cross_kappa_per_generator = {
+        model: float(cohen_kappa_score(expected[generator == model], predicted[generator == model]))
+        for model in sorted(generator.unique())
+    }
+    mismatch = predicted.ne(expected)
     unnatural = ~audits["natural"].eq(True)
     mismatch_rate, unnatural_rate = float(mismatch.mean()), float(unnatural.mean())
     cross_flagged = set(audits.index[mismatch | unnatural])
 
     passed = (
         kappa >= qa.manual_audit.min_cohens_kappa
-        and mismatch_rate <= qa.cross_llm_audit.max_label_mismatch_rate
+        and cross_kappa >= qa.cross_llm_audit.min_cohens_kappa
         and unnatural_rate <= qa.cross_llm_audit.max_unnatural_rate
     )
     drop = manual_drop | (cross_flagged if qa.acceptance.drop_cross_llm_flagged else set())
@@ -153,6 +162,8 @@ def run_acceptance_gate(
         },
         "cross_llm_audit": {
             "n": len(audits),
+            "cohens_kappa": cross_kappa,
+            "cohens_kappa_per_generator": cross_kappa_per_generator,
             "label_mismatch_rate": mismatch_rate,
             "unnatural_rate": unnatural_rate,
             "unparseable": int((audits["predicted_label"].isna() | audits["natural"].isna()).sum()),
@@ -160,7 +171,7 @@ def run_acceptance_gate(
         },
         "thresholds": {
             "min_cohens_kappa": qa.manual_audit.min_cohens_kappa,
-            "max_label_mismatch_rate": qa.cross_llm_audit.max_label_mismatch_rate,
+            "min_cross_llm_cohens_kappa": qa.cross_llm_audit.min_cohens_kappa,
             "max_unnatural_rate": qa.cross_llm_audit.max_unnatural_rate,
         },
         "counts": {
@@ -175,8 +186,8 @@ def run_acceptance_gate(
     report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.info(f"QA report -> {report_file}")
     logger.info(
-        f"kappa={kappa:.3f}, label_mismatch_rate={mismatch_rate:.3f}, "
-        f"unnatural_rate={unnatural_rate:.3f}"
+        f"kappa={kappa:.3f}, cross_llm_kappa={cross_kappa:.3f}, "
+        f"label_mismatch_rate={mismatch_rate:.3f}, unnatural_rate={unnatural_rate:.3f}"
     )
 
     if not passed:

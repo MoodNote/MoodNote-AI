@@ -85,6 +85,20 @@ _DESCRIPTIONS_V4: dict[str, tuple[str, str]] = {
     ),
 }
 
+# v5, after the v4 trial: Anger/Fear/Surprise improved, but Other was still off-label in ~6/10
+# rows. Llama closed 3/5 entries with a feeling ("cảm thấy thoải mái / nhẹ nhõm") and Qwen drifted
+# into gloom. Other now asks for the course of events only, with no feeling or reflection even in
+# the last sentence.
+_DESCRIPTIONS_V5: dict[str, tuple[str, str]] = {
+    **_DESCRIPTIONS_V4,
+    "Other": (
+        "trung tính",
+        "không thể hiện rõ cảm xúc nào trong 6 cảm xúc còn lại; chỉ ghi lại diễn biến một sự việc "
+        "thường ngày, không khen chê, không nêu cảm nhận hay suy ngẫm của người viết, kể cả ở câu "
+        "cuối",
+    ),
+}
+
 # template id -> (system prompt, user prompt, label descriptions). The user prompt takes
 # {label_vi} {description} {van_phong} {do_dai} {ngu_canh} placeholders.
 GENERATION_TEMPLATES: dict[str, tuple[str, str, dict[str, tuple[str, str]]]] = {
@@ -157,6 +171,11 @@ GENERATION_TEMPLATES["diary_v4"] = (
     GENERATION_TEMPLATES["diary_v3"][0],
     GENERATION_TEMPLATES["diary_v3"][1],
     _DESCRIPTIONS_V4,
+)
+GENERATION_TEMPLATES["diary_v5"] = (
+    GENERATION_TEMPLATES["diary_v3"][0],
+    GENERATION_TEMPLATES["diary_v3"][1],
+    _DESCRIPTIONS_V5,
 )
 assert all(
     set(descriptions) == set(DEFAULT_EMOTION_LABELS.values())

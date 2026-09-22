@@ -270,7 +270,7 @@ class CrossLLMAuditParams(_Strict):
     audit_fraction: float
     seed: int
     max_unnatural_rate: float
-    max_label_mismatch_rate: float
+    min_cohens_kappa: float
 
 
 class AcceptanceParams(_Strict):

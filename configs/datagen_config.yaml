@@ -81,4 +81,6 @@ leakage_guard:
 prompt:
     # diary_v3 trượt cross-LLM audit (lệch nhãn 21,9% > 15%, 2026-09-22) -> v4 chỉ sửa mô tả
     # Anger/Fear/Surprise/Other, giữ nguyên câu chữ prompt, trục đa dạng và prompt auditor.
-    instruction_template_id: 'diary_v4'
+    # Trial v4: 3 nhãn kia cải thiện, Other vẫn lệch ~6/10 (kết đoạn bằng cảm nhận) -> v5 chỉ
+    # sửa mô tả Other.
+    instruction_template_id: 'diary_v5'
