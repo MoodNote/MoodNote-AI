@@ -7,9 +7,9 @@ Reads <data-dir>/raw/*.jsonl, writes <data-dir>/filtered/pool.jsonl (kept rows) 
 dropped.jsonl (with `drop_reason`). Checks run in order and each row gets the first reason
 that hits it: empty -> refusal -> truncated -> foreign_script -> exact_dup -> near_dup -> leakage.
 `refusal` catches the assistant declining the task instead of writing a diary entry.
-`foreign_script` catches Chinese characters the generators sometimes slip in; English is not
-filtered here (loanwords like "Facebook" are normal Vietnamese) and is left to the prompt and
-the cross-LLM audit.
+`foreign_script` catches non-Latin scripts (Chinese, Thai, ...) and emoji the generators
+sometimes slip in; English is not filtered here (loanwords like "Facebook" are normal
+Vietnamese) and is left to the prompt and the cross-LLM audit.
 """
 
 import argparse
@@ -33,6 +33,14 @@ logger = get_logger("filter")
 REFUSAL_PATTERN = (
     r"yêu cầu của bạn|tôi có thể giúp bạn|tôi không thể cung cấp|nội dung không phù hợp"
     r"|không thể tạo (?:được )?(?:một )?đoạn nhật ký|hướng dẫn về (?:các )?hoạt động bất hợp pháp"
+)
+
+# Cyrillic, Arabic, Thai, CJK punctuation + kana, CJK, Hangul, fullwidth forms, emoji/dingbats.
+# Not a raw string: Python turns \u escapes into the characters themselves, which pyarrow's RE2
+# engine (pandas 3 string dtype) accepts but cannot parse as escapes.
+FOREIGN_SCRIPT_PATTERN = (
+    "[\u0400-\u04ff\u0600-\u06ff\u0e00-\u0e7f\u3000-\u30ff\u3400-\u9fff\uac00-\ud7af\uff00-\uffef"
+    "\u2600-\u27bf\U0001f300-\U0001faff]"
 )
 
 
@@ -126,9 +134,7 @@ def filter_pool(
         ("empty", lambda d: (d["text"].str.strip() == "").to_numpy()),
         ("refusal", lambda d: d["text"].str.contains(REFUSAL_PATTERN, case=False).to_numpy()),
         ("truncated", lambda d: d["truncated"].to_numpy(dtype=bool)),
-        # Not a raw string: Python turns \u escapes into the characters themselves, which
-        # pyarrow's RE2 engine (pandas 3 string dtype) accepts but cannot parse as escapes.
-        ("foreign_script", lambda d: d["text"].str.contains("[\u3400-\u9fff]").to_numpy()),
+        ("foreign_script", lambda d: d["text"].str.contains(FOREIGN_SCRIPT_PATTERN).to_numpy()),
         (
             "exact_dup",
             lambda d: d["text"].str.lower().str.split().str.join(" ").duplicated().to_numpy(),
