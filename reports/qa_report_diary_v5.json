@@ -1,0 +1,89 @@
+{
+  "passed": true,
+  "template_ids": [
+    "diary_v5"
+  ],
+  "manual_audit": {
+    "n": 180,
+    "cohens_kappa": 0.6459016393442623,
+    "rater_agreement_with_generated_label": {
+      "rater_a": 0.7555555555555555,
+      "rater_b": 0.7222222222222222
+    },
+    "cohens_kappa_with_generated_label": {
+      "rater_a": 0.7143475438216836,
+      "rater_b": 0.675652299264812,
+      "consensus": 0.8397546195855465
+    },
+    "agreement_per_generated_label": {
+      "Anger": {
+        "rater_a": 0.71875,
+        "rater_b": 0.59375,
+        "raters_agree": 0.5625
+      },
+      "Disgust": {
+        "rater_a": 0.9166666666666666,
+        "rater_b": 0.7083333333333334,
+        "raters_agree": 0.6666666666666666
+      },
+      "Enjoyment": {
+        "rater_a": 0.9545454545454546,
+        "rater_b": 1.0,
+        "raters_agree": 0.9545454545454546
+      },
+      "Fear": {
+        "rater_a": 0.7419354838709677,
+        "rater_b": 0.8064516129032258,
+        "raters_agree": 0.8064516129032258
+      },
+      "Other": {
+        "rater_a": 0.5789473684210527,
+        "rater_b": 0.7368421052631579,
+        "raters_agree": 0.5789473684210527
+      },
+      "Sadness": {
+        "rater_a": 0.9259259259259259,
+        "rater_b": 0.8888888888888888,
+        "raters_agree": 0.8888888888888888
+      },
+      "Surprise": {
+        "rater_a": 0.44,
+        "rater_b": 0.36,
+        "raters_agree": 0.44
+      }
+    },
+    "rows_with_rater_disagreement": 54,
+    "rows_relabelled": 17
+  },
+  "cross_llm_audit": {
+    "n": 483,
+    "cohens_kappa": 0.7107435105130193,
+    "cohens_kappa_per_generator": {
+      "llama": 0.6452653901711897,
+      "qwen": 0.7454037769123374
+    },
+    "label_mismatch_rate": 0.2463768115942029,
+    "unnatural_rate": 0.008281573498964804,
+    "unparseable": 0,
+    "flagged_rows": 120
+  },
+  "thresholds": {
+    "min_cohens_kappa": 0.6,
+    "min_cross_llm_cohens_kappa": 0.7,
+    "max_unnatural_rate": 0.1
+  },
+  "counts": {
+    "pool": 2758,
+    "dropped": 173,
+    "accepted": 2585,
+    "accepted_per_label": {
+      "Enjoyment": 396,
+      "Sadness": 395,
+      "Disgust": 384,
+      "Fear": 360,
+      "Other": 354,
+      "Anger": 350,
+      "Surprise": 346
+    }
+  }
+}

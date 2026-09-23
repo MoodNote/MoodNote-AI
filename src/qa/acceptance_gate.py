@@ -7,15 +7,18 @@ Round verdict (thresholds in configs/qa_config.yaml):
   - Cohen's Kappa between the 2 raters >= manual_audit.min_cohens_kappa
   - Cohen's Kappa between generated and auditor labels >= cross_llm_audit.min_cohens_kappa
   - cross-LLM unnatural rate <= cross_llm_audit.max_unnatural_rate
-An unparseable auditor answer counts as a disagreement / unnatural. The label mismatch rate
-and a per-generator Kappa are reported but do not gate.
+An unparseable auditor answer counts as a disagreement / unnatural. The label mismatch rate,
+a per-generator Kappa, and the Kappa between the generated label and each rater / the rater
+consensus are reported but do not gate.
 
 The report is always written, one file per prompt template (reports/qa_report_<template>.json,
 so failed rounds stay on record for the report). On failure the script exits 1 and
-writes no accepted data (revise the prompt, regenerate). On success it drops audited rows
-where at least one rater disagrees with the generated label, plus cross-LLM flagged rows if
-acceptance.drop_cross_llm_flagged, and writes <data-dir>/accepted/accepted.csv (raw text +
-provenance) and processed.csv (word-segmented `text`, int `label`, like data/real/processed).
+writes no accepted data (revise the prompt, regenerate). On success it adjudicates the audited
+rows (see `adjudicate`): rows the raters read differently are dropped, rows they agree on are
+kept, relabelled to their reading where it differs from the generated label. Cross-LLM flagged
+rows are dropped too if acceptance.drop_cross_llm_flagged. It then writes
+<data-dir>/accepted/accepted.csv (raw text + provenance) and processed.csv (word-segmented
+`text`, int `label`, like data/real/processed).
 """
 
 import argparse
@@ -41,6 +44,7 @@ ACCEPTED_COLUMNS = [
     "id",
     "text",
     "label",
+    "label_source",
     "model",
     "model_id",
     "template_id",
@@ -80,6 +84,31 @@ def read_rater_sheet(path: Path, sample: pd.DataFrame) -> pd.Series:
     return pd.Series(labels.to_numpy(), index=sample["id"].to_numpy())
 
 
+def adjudicate(
+    rater_a: pd.Series, rater_b: pd.Series, generated: pd.Series
+) -> tuple[pd.Series, set[str]]:
+    """
+    Apply the human-in-the-loop label rule to the audited rows.
+
+    The generated label is a generation *intent*, not an independent annotation: the text was
+    written to express it. So the two raters are the only annotators:
+
+      - both raters agree with the generated label -> keep it
+      - both raters agree on another label         -> the text conveys that label, relabel
+      - the raters disagree                        -> the text is ambiguous, drop
+
+    Args:
+        rater_a: First rater's labels, indexed by row id
+        rater_b: Second rater's labels, same index
+        generated: Generated label of the audited rows, same index
+
+    Returns:
+        (labels to apply in place of the generated one, ids to drop)
+    """
+    agree = rater_a == rater_b
+    return rater_a[agree & rater_a.ne(generated)], set(rater_a.index[~agree])
+
+
 def run_acceptance_gate(
     data_dir: str = "data/synthetic",
     report_path: str | None = None,
@@ -112,7 +141,8 @@ def run_acceptance_gate(
     )
     intended = generated.loc[rater_a.index]
     kappa = float(cohen_kappa_score(rater_a, rater_b))
-    manual_drop = set(rater_a.index[(rater_a != intended) | (rater_b != intended)])
+    agree = rater_a == rater_b
+    adjudicated, manual_drop = adjudicate(rater_a, rater_b, intended)
 
     # Layer 2: cross-LLM audit. Only verdicts on the current text of a selected row count.
     selected = select_cross_llm_rows(pool, qa.cross_llm_audit)[["id", "text"]]
@@ -138,7 +168,9 @@ def run_acceptance_gate(
     mismatch = predicted.ne(expected)
     unnatural = ~audits["natural"].eq(True)
     mismatch_rate, unnatural_rate = float(mismatch.mean()), float(unnatural.mean())
-    cross_flagged = set(audits.index[mismatch | unnatural])
+    # Two raters outrank the 8B auditor on the label, but they never judged naturalness.
+    label_flag = mismatch & ~audits.index.isin(rater_a.index[agree])
+    cross_flagged = set(audits.index[label_flag | unnatural])
 
     passed = (
         kappa >= qa.manual_audit.min_cohens_kappa
@@ -146,7 +178,11 @@ def run_acceptance_gate(
         and unnatural_rate <= qa.cross_llm_audit.max_unnatural_rate
     )
     drop = manual_drop | (cross_flagged if qa.acceptance.drop_cross_llm_flagged else set())
-    accepted = pool[~pool["id"].isin(drop)]
+    accepted = pool[~pool["id"].isin(drop)].copy()
+    accepted["label"] = accepted["id"].map(adjudicated).fillna(accepted["label"])
+    accepted["label_source"] = (
+        accepted["id"].isin(adjudicated.index).map({True: "human_adjudicated", False: "generated"})
+    )
 
     report = {
         "passed": passed,
@@ -158,7 +194,23 @@ def run_acceptance_gate(
                 qa.manual_audit.raters[0]: float((rater_a == intended).mean()),
                 qa.manual_audit.raters[1]: float((rater_b == intended).mean()),
             },
+            "cohens_kappa_with_generated_label": {
+                qa.manual_audit.raters[0]: float(cohen_kappa_score(intended, rater_a)),
+                qa.manual_audit.raters[1]: float(cohen_kappa_score(intended, rater_b)),
+                "consensus": float(cohen_kappa_score(intended[agree], rater_a[agree])),
+            },
+            "agreement_per_generated_label": pd.DataFrame(
+                {
+                    qa.manual_audit.raters[0]: rater_a == intended,
+                    qa.manual_audit.raters[1]: rater_b == intended,
+                    "raters_agree": agree,
+                }
+            )
+            .groupby(intended)
+            .mean()
+            .to_dict(orient="index"),
             "rows_with_rater_disagreement": len(manual_drop),
+            "rows_relabelled": len(adjudicated),
         },
         "cross_llm_audit": {
             "n": len(audits),
@@ -206,15 +258,31 @@ def run_acceptance_gate(
     return True
 
 
+def _self_check() -> None:
+    """Assert the four audit cases of `adjudicate`, run with --self-check."""
+    idx = ["a", "b", "c", "d"]
+    gen = pd.Series(["Enjoyment"] * 4, index=idx)
+    ra = pd.Series(["Enjoyment", "Sadness", "Enjoyment", "Sadness"], index=idx)
+    rb = pd.Series(["Enjoyment", "Sadness", "Fear", "Fear"], index=idx)
+    adjudicated, drop = adjudicate(ra, rb, gen)
+    assert adjudicated.to_dict() == {"b": "Sadness"}, adjudicated.to_dict()
+    assert drop == {"c", "d"}, drop
+    logger.info("adjudicate: 4/4 cases OK")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", default="data/synthetic")
     parser.add_argument("--report", help="Default: reports/qa_report_<template_id>.json")
     parser.add_argument("--qa-config", default="configs/qa_config.yaml")
     parser.add_argument("--model-config", default="configs/model_config.yaml")
+    parser.add_argument("--self-check", action="store_true", help="Check adjudicate() and exit")
     args = parser.parse_args()
 
     setup_logger()
+    if args.self_check:
+        _self_check()
+        sys.exit(0)
     sys.exit(
         0
         if run_acceptance_gate(args.data_dir, args.report, args.qa_config, args.model_config)

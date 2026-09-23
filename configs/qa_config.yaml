@@ -17,3 +17,6 @@ cross_llm_audit:
 
 acceptance:
     drop_cross_llm_flagged: true # lọc từng mẫu bị cross-LLM gắn cờ, độc lập với round verdict
+    # Luật nhãn lớp 1 chốt 2026-09-23, TRƯỚC khi 2 rater chấm (sheet còn trống):
+    # 2 rater đồng thuận khác nhãn sinh -> đè nhãn người; 2 rater lệch nhau -> bỏ.
+    # Hiện thực vế "hiệu chỉnh dữ liệu" của thuyết minh. Không có knob: luật cố định.
