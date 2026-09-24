@@ -1,20 +1,17 @@
 training:
     learning_rate: 2.0e-5 # standard base-size RoBERTa fine-tuning LR (dấu chấm bắt buộc: PyYAML parse 2e-5 thành str)
-    batch_size: 16 # T4 16GB safe với PhoBERT-base-v2 + R-Drop
+    batch_size: 16 # T4 16GB safe với PhoBERT-base-v2 ở max_seq_length 256
     gradient_accumulation_steps: 2 # effective batch = 16 * 2 = 32
-    num_epochs: 12 # buffer để real_only hội tụ (ở 6 epoch val f1_macro còn đang tăng); early stopping tự cắt combined/synthetic_only
+    num_epochs: 12 # trần; early stopping cắt sớm
     warmup_ratio: 0.1
-    weight_decay: 0.01 # standard cho BERT fine-tuning; 0.1 quá cao → over-regularize
-    fp16: true
-    seed: 42
-    early_stopping_patience: 4 # giảm từ 10 → 4; patience=10 cho phép overfit 3+ epochs thừa
-    use_llrd: true # Layer-wise LR Decay
-    llrd_factor: 0.85 # mỗi layer giảm 15% so với layer trên — bảo vệ pretrained features tốt hơn
-    use_class_weights: true
-    rdrop_alpha: 0.1 # R-Drop enabled — giảm gap val/test (0.6474 vs 0.5737); KL regularization giữa 2 forward passes
+    weight_decay: 0.01 # standard cho BERT fine-tuning
+    fp16: true # T4 không có bf16
+    seed: 42 # seed chia split synthetic + seed run duy nhất của kịch bản không đa seed
+    early_stopping_patience: 4 # tính theo epoch (eval + save mỗi epoch, cả 3 kịch bản)
+    use_class_weights: true # 'balanced' trên train của từng kịch bản, nhân vào focal loss
 
 optimizer:
-    type: 'AdamW'
+    type: 'adamw_torch' # truyền thẳng vào TrainingArguments.optim
     betas: [0.9, 0.999]
     eps: 1.0e-8
 
@@ -22,10 +19,8 @@ scheduler:
     type: 'cosine'
 
 logging:
-    log_steps: 50 # merged dataset ~3-4x lớn hơn, giảm log noise
-    eval_steps: 100 # granular hơn để bắt best checkpoint sớm hơn
-    save_steps: 100 # match eval_steps
-    save_total_limit: 1 # chỉ giữ 1 checkpoint (best) — tiết kiệm ~1.5GB local storage
+    log_steps: 50
+    save_total_limit: 1 # chỉ giữ checkpoint tốt nhất (+ checkpoint cuối nếu khác)
 
 wandb:
     project: 'moodnote-ai'
@@ -33,7 +28,7 @@ wandb:
     enabled: true
 
 # Thí nghiệm ablation 3 kịch bản (Nội dung 2 thuyết minh). Cả 3 kịch bản dùng chung
-# đúng bộ hyperparameter phía trên — biến duy nhất là tập train.
+# đúng bộ hyperparameter phía trên — biến duy nhất là dữ liệu train/val.
 ablation:
     scenarios: ['real_only', 'synthetic_only', 'combined']
     baseline: 'real_only' # "phương án nền" để so sánh
@@ -42,7 +37,9 @@ ablation:
     multi_seed_scenarios: ['real_only', 'combined'] # synthetic_only chỉ chạy 1 seed (control)
     real_dir: 'data/real/processed'
     synthetic_dir: 'data/synthetic/accepted'
-    ablation_dir: 'data/ablation'
-    validation_path: 'data/real/processed/validation.csv' # dùng chung cho cả 3
-    test_path: 'data/real/processed/test.csv' # cố định, read-only
-    results_dir: 'reports'
+    ablation_dir: 'data/ablation' # train/val mỗi kịch bản; val theo nguồn dữ liệu của kịch bản
+    test_path: 'data/real/processed/test.csv' # cố định, read-only, dùng chung cho cả 3
+    results_dir: 'reports/ablation'
+    # Ngưỡng định hướng của thuyết minh, xét trên mean các seed. Chỉ báo cáo, không chặn gì.
+    min_accuracy: 0.65
+    min_f1_macro: 0.60

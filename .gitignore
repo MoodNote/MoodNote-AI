@@ -29,6 +29,7 @@ data/synthetic/filtered/
 # Models
 models/checkpoints/
 models/best_model/
+models/ablation/
 
 # Logs
 logs/

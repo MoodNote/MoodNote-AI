@@ -2,10 +2,8 @@ model:
     name: 'vinai/phobert-base-v2' # PhoBERT base v2, improved over original
     # name: "uitnlp/visobert"        # alternative model, not the default
     num_labels: 7 # phải khớp len(DEFAULT_EMOTION_LABELS) trong src/utils/emotion_constants.py
-    max_seq_length: 128
-    dropout: 0.4 # tăng từ 0.3 → giảm overfitting (best ckpt step 1500, train đến 4500)
-    label_smoothing: 0.1 # giảm từ 0.15 → bớt uncertainty, giúp model commit hơn với Anger/Surprise
-    focal_gamma: 2.0 # tăng từ 1.0 → focus mạnh hơn vào hard examples (Anger bị nhầm sang Disgust)
+    max_seq_length: 256 # tối đa của PhoBERT; 128 cắt 20,3% mẫu synthetic (median 87 token), 256 chỉ cắt 0,4%; VSMEC không mẫu nào > 128
+    focal_gamma: 2.0 # giá trị mặc định của bài gốc focal loss (Lin et al., 2017 — [18] thuyết minh)
 
 # Nhãn cảm xúc và điểm sentiment KHÔNG khai báo ở đây — nguồn duy nhất là
 # DEFAULT_EMOTION_LABELS / DEFAULT_SENTIMENT_SCORES trong src/utils/emotion_constants.py.
