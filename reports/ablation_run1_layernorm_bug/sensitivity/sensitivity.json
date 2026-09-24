@@ -1,0 +1,354 @@
+{
+  "rule": "Post-hoc sensitivity analysis, decided after the ablation results were seen; report-only. combined_vsmec_val = combined re-trained with the same train data and config, with checkpoint selection and early stopping on VSMEC validation only. Its result under the ablation rule is reported for context; the ablation verdict stays the main result.",
+  "load_note": "transformers 5.3 saves PhoBERT's LayerNorm tensors under the checkpoint's legacy names (gamma/beta) and load_best_model_at_end restores the best checkpoint with a raw load_state_dict, which skips all 50 of them: the model tested keeps the LayerNorm of the last epoch trained. Every ablation run was tested that way. `*_fixed` scores reload the best checkpoint through from_pretrained, which maps the legacy names.",
+  "ablation_verdict": false,
+  "same_rule_post_hoc": false,
+  "scenarios": {
+    "real_only": {
+      "seeds_done": [
+        42,
+        43,
+        44
+      ],
+      "test": {
+        "accuracy": {
+          "mean": 0.6681096681096681,
+          "std": 0.011453468879067502,
+          "values": [
+            0.6594516594516594,
+            0.6637806637806638,
+            0.6810966810966811
+          ]
+        },
+        "f1_macro": {
+          "mean": 0.6590774288135322,
+          "std": 0.011470939342564187,
+          "values": [
+            0.6563761057191416,
+            0.6491982377545901,
+            0.6716579429668649
+          ]
+        },
+        "f1_weighted": {
+          "mean": 0.6696652467572924,
+          "std": 0.010849688847263509,
+          "values": [
+            0.662232919168661,
+            0.6646472175125299,
+            0.6821156035906866
+          ]
+        }
+      },
+      "synthetic_test": {
+        "accuracy": {
+          "mean": 0.5601374570446735,
+          "std": 0.003936920700133869,
+          "values": [
+            0.5592783505154639,
+            0.5567010309278351,
+            0.5644329896907216
+          ]
+        },
+        "f1_macro": {
+          "mean": 0.5010445789853226,
+          "std": 0.005402864291198146,
+          "values": [
+            0.5015054965787756,
+            0.4954260213793557,
+            0.5062022189978366
+          ]
+        },
+        "f1_weighted": {
+          "mean": 0.5099989892476393,
+          "std": 0.005528736967688677,
+          "values": [
+            0.5099111156259184,
+            0.5045147128636381,
+            0.5155711392533613
+          ]
+        }
+      }
+    },
+    "combined": {
+      "seeds_done": [
+        42,
+        43,
+        44
+      ],
+      "test": {
+        "accuracy": {
+          "mean": 0.6512746512746512,
+          "std": 0.008455216850046611,
+          "values": [
+            0.6608946608946609,
+            0.6479076479076479,
+            0.645021645021645
+          ]
+        },
+        "f1_macro": {
+          "mean": 0.6330256879756191,
+          "std": 0.003065479028787772,
+          "values": [
+            0.636401248514731,
+            0.6322605966899741,
+            0.6304152187221522
+          ]
+        },
+        "f1_weighted": {
+          "mean": 0.6521651146860339,
+          "std": 0.008045493146687779,
+          "values": [
+            0.6607976108846123,
+            0.6508220747882583,
+            0.6448756583852312
+          ]
+        }
+      },
+      "synthetic_test": {
+        "accuracy": {
+          "mean": 0.9338487972508591,
+          "std": 0.0014880161577052158,
+          "values": [
+            0.9329896907216495,
+            0.9355670103092784,
+            0.9329896907216495
+          ]
+        },
+        "f1_macro": {
+          "mean": 0.9326159909896843,
+          "std": 0.0013492213769544736,
+          "values": [
+            0.9315069632490515,
+            0.9341181025736488,
+            0.9322229071463527
+          ]
+        },
+        "f1_weighted": {
+          "mean": 0.9337313041430926,
+          "std": 0.0014913563354940612,
+          "values": [
+            0.9325893316726142,
+            0.935418564483075,
+            0.9331860162735885
+          ]
+        }
+      }
+    },
+    "combined_vsmec_val": {
+      "seeds_done": [
+        42,
+        43,
+        44
+      ],
+      "test": {
+        "accuracy": {
+          "mean": 0.656084656084656,
+          "std": 0.011663641801810605,
+          "values": [
+            0.658008658008658,
+            0.6666666666666666,
+            0.6435786435786436
+          ]
+        },
+        "f1_macro": {
+          "mean": 0.6335198032632509,
+          "std": 0.010672391221407783,
+          "values": [
+            0.6293371402262198,
+            0.6456500058249551,
+            0.6255722637385778
+          ]
+        },
+        "f1_weighted": {
+          "mean": 0.6579210512139083,
+          "std": 0.008063786399249415,
+          "values": [
+            0.6608263101856364,
+            0.6641296392437603,
+            0.6488072042123282
+          ]
+        }
+      },
+      "synthetic_test": {
+        "accuracy": {
+          "mean": 0.9424398625429553,
+          "std": 0.01041611310393657,
+          "values": [
+            0.9536082474226805,
+            0.9407216494845361,
+            0.9329896907216495
+          ]
+        },
+        "f1_macro": {
+          "mean": 0.9419474824927856,
+          "std": 0.010251512446347495,
+          "values": [
+            0.9528672606559743,
+            0.9404451609832838,
+            0.9325300258390987
+          ]
+        },
+        "f1_weighted": {
+          "mean": 0.9426584939225596,
+          "std": 0.010270187269694761,
+          "values": [
+            0.9537133483244455,
+            0.9408485110277801,
+            0.9334136224154531
+          ]
+        }
+      },
+      "test_fixed": {
+        "accuracy": {
+          "mean": 0.6556036556036555,
+          "std": 0.013407753597658834,
+          "values": [
+            0.6594516594516594,
+            0.6666666666666666,
+            0.6406926406926406
+          ]
+        },
+        "f1_macro": {
+          "mean": 0.6333178706161208,
+          "std": 0.011175453292292949,
+          "values": [
+            0.6304426368242034,
+            0.6456500058249551,
+            0.6238609691992038
+          ]
+        },
+        "f1_weighted": {
+          "mean": 0.6574429932473533,
+          "std": 0.010020073644483369,
+          "values": [
+            0.6622769833671562,
+            0.6641296392437603,
+            0.6459223571311433
+          ]
+        }
+      },
+      "synthetic_test_fixed": {
+        "accuracy": {
+          "mean": 0.9407216494845361,
+          "std": 0.01288659793814434,
+          "values": [
+            0.9536082474226805,
+            0.9407216494845361,
+            0.9278350515463918
+          ]
+        },
+        "f1_macro": {
+          "mean": 0.940238100943271,
+          "std": 0.012733952380332602,
+          "values": [
+            0.9528672606559743,
+            0.9404451609832838,
+            0.9274018811905549
+          ]
+        },
+        "f1_weighted": {
+          "mean": 0.9409913346805602,
+          "std": 0.012651206475734348,
+          "values": [
+            0.9537133483244455,
+            0.9408485110277801,
+            0.9284121446894548
+          ]
+        }
+      }
+    }
+  },
+  "per_seed": {
+    "42": {
+      "minus_real_only": {
+        "accuracy": -0.0014430014430013571,
+        "f1_macro": -0.02703896549292184,
+        "f1_weighted": -0.001406608983024582
+      },
+      "minus_combined": {
+        "accuracy": -0.0028860028860028253,
+        "f1_macro": -0.007064108288511228,
+        "f1_weighted": 2.8699301024115442e-05
+      }
+    },
+    "43": {
+      "minus_real_only": {
+        "accuracy": 0.0028860028860028253,
+        "f1_macro": -0.0035482319296349374,
+        "f1_weighted": -0.0005175782687695252
+      },
+      "minus_combined": {
+        "accuracy": 0.018759018759018753,
+        "f1_macro": 0.01338940913498099,
+        "f1_weighted": 0.013307564455502074
+      }
+    },
+    "44": {
+      "minus_real_only": {
+        "accuracy": -0.037518037518037506,
+        "f1_macro": -0.0460856792282871,
+        "f1_weighted": -0.03330839937835839
+      },
+      "minus_combined": {
+        "accuracy": -0.0014430014430014682,
+        "f1_macro": -0.0048429549835744545,
+        "f1_weighted": 0.003931545827096983
+      }
+    }
+  },
+  "checkpoint_selection": {
+    "42": {
+      "combined_best_epoch": 8.0,
+      "best_epoch": 4.0,
+      "pooled_pick_epoch": 6.0,
+      "vsmec_f1_at_best_epoch": 0.5971209070892781,
+      "vsmec_f1_at_pooled_pick_epoch": 0.5967988277494858
+    },
+    "43": {
+      "combined_best_epoch": 3.0,
+      "best_epoch": 6.0,
+      "pooled_pick_epoch": 6.0,
+      "vsmec_f1_at_best_epoch": 0.6083717491261567,
+      "vsmec_f1_at_pooled_pick_epoch": 0.6083717491261567
+    },
+    "44": {
+      "combined_best_epoch": 6.0,
+      "best_epoch": 3.0,
+      "pooled_pick_epoch": 4.0,
+      "vsmec_f1_at_best_epoch": 0.5937793166784621,
+      "vsmec_f1_at_pooled_pick_epoch": 0.5868283439993931
+    }
+  },
+  "best_checkpoint_load": {
+    "42": {
+      "best_epoch": 4.0,
+      "epochs_run": 8.0,
+      "fixed_minus_as_loaded": {
+        "accuracy": 0.0014430014430013571,
+        "f1_macro": 0.0011054965979836462,
+        "f1_weighted": 0.0014506731815198126
+      },
+      "predictions_changed": 1
+    },
+    "43": {
+      "best_epoch": 6.0,
+      "epochs_run": 10.0,
+      "fixed_minus_as_loaded": {
+        "accuracy": 0.0,
+        "f1_macro": 0.0,
+        "f1_weighted": 0.0
+      },
+      "predictions_changed": 0
+    },
+    "44": {
+      "best_epoch": 3.0,
+      "epochs_run": 7.0,
+      "fixed_minus_as_loaded": {
+        "accuracy": -0.0028860028860029363,
+        "f1_macro": -0.0017112945393740198,
+        "f1_weighted": -0.0028848470811848603
+      },
+      "predictions_changed": 5
+    }
+  }
+}

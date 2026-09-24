@@ -42,7 +42,7 @@ from ..utils.config_schema import (
 from ..utils.emotion_constants import DEFAULT_EMOTION_LABELS
 from ..utils.logger import get_logger, setup_logger
 from ..utils.metrics import LABEL_IDS, compute_metrics
-from .trainer import EmotionDataset, focal_loss, train_model
+from .trainer import EmotionDataset, focal_loss, quiet_logs, train_model
 
 logger = get_logger("ablation_runner")
 
@@ -416,6 +416,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     setup_logger()
+    quiet_logs()
     if args.self_check:
         _self_check()
         sys.exit(0)

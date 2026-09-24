@@ -15,17 +15,24 @@ from pathlib import Path
 import pandas as pd
 import torch
 import torch.nn.functional as F
+import transformers
+from huggingface_hub.utils import disable_progress_bars
 from torch.utils.data import Dataset
 from transformers import (
     EarlyStoppingCallback,
     PreTrainedModel,
     PreTrainedTokenizerBase,
+    PrinterCallback,
     Trainer,
+    TrainerCallback,
     TrainingArguments,
 )
 
 from ..utils.config_schema import TrainingConfig
+from ..utils.logger import get_logger
 from ..utils.metrics import compute_metrics_for_trainer
+
+logger = get_logger("trainer")
 
 
 class EmotionDataset(Dataset):
@@ -137,6 +144,7 @@ def train_model(
         metric_for_best_model="f1_macro",
         logging_steps=config.logging.log_steps,
         report_to=["wandb"] if config.wandb.enabled else "none",
+        disable_tqdm=True,
     )
     trainer = Trainer(
         model=model,
@@ -148,7 +156,67 @@ def train_model(
             outputs.logits, labels, focal_gamma, class_weights, num_items_in_batch
         ),
         compute_metrics=compute_metrics_for_trainer,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=params.early_stopping_patience)],
+        callbacks=[
+            EarlyStoppingCallback(early_stopping_patience=params.early_stopping_patience),
+            EpochLogger(),
+        ],
     )
+    # disable_tqdm swaps the progress bars for a callback printing every log dict: EpochLogger
+    # prints instead. The experiment tracker still receives every log.
+    trainer.remove_callback(PrinterCallback)
     trainer.train()
+    reload_best(trainer)
     return trainer
+
+
+def reload_best(trainer: Trainer) -> None:
+    """
+    Load the best checkpoint into trainer.model, LayerNorm included.
+
+    transformers 5.3 saves PhoBERT's LayerNorm under the checkpoint's legacy names (gamma/beta),
+    and load_best_model_at_end restores the checkpoint with a raw load_state_dict that skips
+    them, leaving the last epoch's LayerNorm in the model. from_pretrained maps the names; the
+    strict load fails if any tensor does not match.
+
+    Args:
+        trainer: A trainer after train(), with load_best_model_at_end (its best checkpoint is
+            kept on disk whatever save_total_limit is)
+    """
+    best = type(trainer.model).from_pretrained(trainer.state.best_model_checkpoint)
+    trainer.model.load_state_dict(best.state_dict())
+
+
+class EpochLogger(TrainerCallback):
+    """One log line per evaluation and one per run, in place of progress bars and log dicts."""
+
+    def on_evaluate(self, args, state, control, metrics=None, **kwargs):
+        # eval_f1_macro, or eval_<set>_f1_macro when the Trainer evaluates a dict of sets
+        prefix = next(key for key in metrics if key.endswith("f1_macro")).removesuffix("f1_macro")
+        name = prefix.removeprefix("eval_").rstrip("_") or "val"
+        values = " ".join(
+            f"{m} {metrics[prefix + m]:.4f}" for m in ("loss", "accuracy", "f1_macro")
+        )
+        logger.info(f"epoch {state.epoch:.0f}/{args.num_train_epochs:.0f} {name}: {values}")
+
+    def on_train_end(self, args, state, control, **kwargs):
+        key = args.metric_for_best_model
+        key = key if key.startswith("eval_") else f"eval_{key}"
+        best = next(h["epoch"] for h in state.log_history if h.get(key) == state.best_metric)
+        logger.info(
+            f"best epoch {best:.0f} ({key.removeprefix('eval_')} {state.best_metric:.4f}), "
+            f"stopped at epoch {state.epoch:.0f}/{args.num_train_epochs:.0f}"
+        )
+
+
+def quiet_logs() -> None:
+    """
+    Keep the console to the runners' INFO lines and EpochLogger.
+
+    Silences transformers warnings (all expected here: the new classifier head, the legacy
+    LayerNorm names reload_best handles, early stopping seeing one validation set at a time),
+    progress bars and W&B's console output. Errors still show; W&B still records every log.
+    """
+    transformers.logging.set_verbosity_error()
+    transformers.logging.disable_progress_bar()
+    disable_progress_bars()
+    os.environ.setdefault("WANDB_SILENT", "true")

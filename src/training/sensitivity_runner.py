@@ -13,19 +13,15 @@ criterion would have picked among the epochs trained.
 Decided after the ablation results were seen: report-only (RULE). The ablation verdict stays the
 main result.
 
-Each run is tested twice (LOAD_NOTE): `test` / `synthetic_test` score the model as the Trainer
-restores it, like every ablation run, so they are what the comparison uses; `test_fixed` /
-`synthetic_test_fixed` score the best checkpoint loaded correctly, measuring what that costs.
-The saved model is the correctly loaded one.
+Each run is tested twice (LOAD_NOTE): `test` / `synthetic_test` score the best checkpoint loaded
+correctly (trainer.reload_best), like the ablation runs, and are what the comparison uses;
+`test_as_loaded` / `synthetic_test_as_loaded` score the model as load_best_model_at_end left it,
+measuring the load bug. The saved model is the correctly loaded one.
 
 One JSON per run, <results_dir>/combined_vsmec_val_seed<S>.json; a run whose JSON exists is
 skipped, so re-running after a Colab disconnect resumes. The `training.seed` model is saved to
 models/ablation/combined_vsmec_val/. Afterwards <results_dir>/sensitivity.{json,md} compares the
 runs with the real_only and combined run JSONs in --baseline-dir, which must share the config.
-
-While training, transformers warns "early stopping required metric_for_best_model, but did not
-find eval_vsmec_f1_macro" after the synthetic and pooled evaluations: expected, the early
-stopping callback runs once per validation set and only counts the vsmec one.
 """
 
 import argparse
@@ -47,6 +43,7 @@ from transformers import (
     EarlyStoppingCallback,
     PreTrainedModel,
     PreTrainedTokenizerBase,
+    PrinterCallback,
     Trainer,
     TrainingArguments,
     set_seed,
@@ -63,7 +60,7 @@ from ..utils.emotion_constants import DEFAULT_EMOTION_LABELS
 from ..utils.logger import get_logger, setup_logger
 from ..utils.metrics import LABEL_IDS, compute_metrics, compute_metrics_for_trainer
 from .ablation_runner import CANDIDATE, CHECKPOINT_DIR, MODEL_DIR, _mean_std, verdict
-from .trainer import EmotionDataset, focal_loss
+from .trainer import EmotionDataset, EpochLogger, focal_loss, quiet_logs, reload_best
 
 logger = get_logger("sensitivity_runner")
 
@@ -76,7 +73,7 @@ VALIDATION_FILES = {
     "pooled": "combined/validation.csv",
 }
 HISTORY_METRICS = ("loss", "accuracy", "f1_macro")
-FIXED = "_fixed"  # suffix of the scores of the correctly loaded best checkpoint
+AS_LOADED = "_as_loaded"  # suffix of the scores of the model as load_best_model_at_end left it
 RULE = (
     f"Post-hoc sensitivity analysis, decided after the ablation results were seen; report-only. "
     f"{SCENARIO} = {CANDIDATE} re-trained with the same train data and config, with checkpoint "
@@ -86,9 +83,10 @@ RULE = (
 LOAD_NOTE = (
     "transformers 5.3 saves PhoBERT's LayerNorm tensors under the checkpoint's legacy names "
     "(gamma/beta) and load_best_model_at_end restores the best checkpoint with a raw "
-    "load_state_dict, which skips all 50 of them: the model tested keeps the LayerNorm of the "
-    f"last epoch trained. Every ablation run was tested that way. `*{FIXED}` scores reload the "
-    "best checkpoint through from_pretrained, which maps the legacy names."
+    "load_state_dict, which skips all 50 of them: the model keeps the LayerNorm of the last "
+    "epoch trained. The first ablation run (archived in reports/ablation_run1_layernorm_bug/) "
+    "was tested that way; trainer.reload_best now reloads the best checkpoint through "
+    f"from_pretrained, which maps the legacy names. `*{AS_LOADED}` scores measure the bug."
 )
 
 
@@ -154,6 +152,7 @@ def train_vsmec_selected(
         metric_for_best_model="eval_vsmec_f1_macro",
         logging_steps=config.logging.log_steps,
         report_to=["wandb"] if config.wandb.enabled else "none",
+        disable_tqdm=True,
     )
     trainer = Trainer(
         model=model,
@@ -165,8 +164,12 @@ def train_vsmec_selected(
             outputs.logits, labels, focal_gamma, class_weights, num_items_in_batch
         ),
         compute_metrics=compute_metrics_for_trainer,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=params.early_stopping_patience)],
+        callbacks=[
+            EarlyStoppingCallback(early_stopping_patience=params.early_stopping_patience),
+            EpochLogger(),
+        ],
     )
+    trainer.remove_callback(PrinterCallback)  # EpochLogger prints instead, as in train_model
     trainer.train()
     return trainer
 
@@ -279,13 +282,11 @@ def run_one(seed: int, model_cfg: ModelConfig, config: TrainingConfig) -> dict:
         "test": EmotionDataset(Path(config.ablation.test_path), tokenizer, max_len),
         "synthetic_test": EmotionDataset(data_dir / SYNTHETIC_TEST_FILE, tokenizer, max_len),
     }
-    # As the Trainer restored it (LOAD_NOTE), comparable with the ablation runs; then reloaded
-    # correctly (strict: every tensor of the checkpoint must land in the model).
+    # First as load_best_model_at_end restored it (LOAD_NOTE), only to measure the load bug; then
+    # loaded correctly, as train_model does for the ablation runs.
+    record |= score(trainer, test_sets, AS_LOADED)
+    reload_best(trainer)
     record |= score(trainer, test_sets)
-    best = AutoModelForSequenceClassification.from_pretrained(trainer.state.best_model_checkpoint)
-    trainer.model.load_state_dict(best.state_dict())
-    del best
-    record |= score(trainer, test_sets, FIXED)
     record["load_note"] = LOAD_NOTE
     record["config"] = {"model": model_cfg.model_dump(), "training": config.model_dump()}
     record["environment"] = {
@@ -344,7 +345,7 @@ def summarize(results_dir: Path, baseline_dir: Path, ablation: AblationParams) -
         done = [s for s in seeds if (scenario, s) in runs]
         splits = ["test", "synthetic_test"]
         if scenario == SCENARIO:
-            splits += [f"{split}{FIXED}" for split in splits]
+            splits += [f"{split}{AS_LOADED}" for split in splits]
         scenarios[scenario] = {"seeds_done": done}
         for split in splits:
             scenarios[scenario][split] = (
@@ -371,7 +372,7 @@ def summarize(results_dir: Path, baseline_dir: Path, ablation: AblationParams) -
             "vsmec_f1_at_best_epoch": vsmec_f1[run["best_epoch"]],
             "vsmec_f1_at_pooled_pick_epoch": vsmec_f1[run["pooled_pick_epoch"]],
         }
-        fixed, loaded = run[f"test{FIXED}"], run["test"]
+        fixed, loaded = run["test"], run[f"test{AS_LOADED}"]
         load[seed] = {
             "best_epoch": run["best_epoch"],
             "epochs_run": run["epochs_run"],
@@ -428,14 +429,17 @@ def _markdown(record: dict, ablation: AblationParams) -> str:
         lines += [f"## {title}", "", "| Scenario | Seeds | " + " | ".join(metrics) + " |"]
         lines += ["|---" * (len(metrics) + 2) + "|"]
         for scenario, summary in record["scenarios"].items():
-            for key, label in ((split, scenario), (f"{split}{FIXED}", f"{scenario} (fixed load)")):
+            for key, label in (
+                (split, scenario),
+                (f"{split}{AS_LOADED}", f"{scenario} (as loaded)"),
+            ):
                 if summary.get(key) is not None:
                     row = " | ".join(cell(summary[key][m]) for m in metrics)
                     lines += [f"| {label} | {len(summary['seeds_done'])} | {row} |"]
         lines += [""]
 
     others = (baseline, CANDIDATE)
-    lines += [f"## {SCENARIO} minus each scenario, per seed (VSMEC test, as loaded)", ""]
+    lines += [f"## {SCENARIO} minus each scenario, per seed (VSMEC test)", ""]
     lines += ["| Seed | " + " | ".join(f"{m} vs {o}" for o in others for m in metrics) + " |"]
     lines += ["|---" * (len(metrics) * len(others) + 1) + "|"]
     for seed, diffs in record["per_seed"].items():
@@ -530,7 +534,7 @@ def run_sensitivity(
         path.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
         logger.info(
             f"{SCENARIO} seed {run_seed}: test f1_macro={record['test']['f1_macro']:.4f} "
-            f"(fixed load {record[f'test{FIXED}']['f1_macro']:.4f}) -> {path}"
+            f"(as loaded {record[f'test{AS_LOADED}']['f1_macro']:.4f}) -> {path}"
         )
     return summarize(results_path, baseline_path, ablation)
 
@@ -579,6 +583,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     setup_logger()
+    quiet_logs()
     if args.self_check:
         _self_check()
         sys.exit(0)
